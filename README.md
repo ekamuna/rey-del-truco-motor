@@ -33,4 +33,11 @@ Python 3.11+ · pytest · mypy · (fase ML) PyTorch + Gymnasium · CLI con rich/
 
 ## Estado
 
-📋 **Planificación** — PRD y roadmap listos. Próximo: **M0 (setup)** → **M1 (cartas y jerarquía)**.
+🛠️ **En construcción** — M0 (setup) y M1 (cartas y jerarquía) ✅ listos. Próximo: **M2 (motor de la ronda y las bazas)**.
+
+### Cómo correr
+```bash
+uv sync            # crea el entorno (Python 3.12 + deps)
+uv run pytest      # tests
+uv run ruff check . && uv run mypy   # linter + type-checker
+```

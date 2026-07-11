@@ -14,13 +14,13 @@ setup  cartas  motor   jugar   reglas  envido   ML/RL   web/CFR
 
 ## 🌱 Fase 0 — El motor (jugar sin IA)
 
-### M0 — Setup del proyecto
+### M0 — Setup del proyecto  ✅ HECHO
 - 🎯 Base técnica lista para trabajar con confianza.
 - 🛠️ `uv init`, estructura `src/truco/{core,agents,ui}`, `pytest` + `mypy` configurados, `README`, git.
 - 🧠 Layout de un proyecto Python serio; por qué los tests van desde el minuto cero.
 - ✅ `pytest` corre (aunque sea 1 test trivial) y `mypy` pasa en verde.
 
-### M1 — Cartas y jerarquía  ⭐ *el corazón*
+### M1 — Cartas y jerarquía  ⭐ *el corazón*  ✅ HECHO
 - 🎯 Representar la baraja y el orden de poder REAL del truco.
 - 🛠️ `core/cards.py`: `Carta(numero, palo)` + `fuerza_truco(carta) -> int`. `core/mazo.py`: baraja de 40 y reparto.
 - 🧠 Que la jerarquía **no es numérica**; las "bravas" (1♠, 1♣, 7♠, 7oro) y las trampas (1 y 7 "falsos" son bajos).
