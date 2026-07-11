@@ -26,7 +26,7 @@ setup  cartas  motor   jugar   reglas  envido   ML/RL   web/CFR
 - 🧠 Que la jerarquía **no es numérica**; las "bravas" (1♠, 1♣, 7♠, 7oro) y las trampas (1 y 7 "falsos" son bajos).
 - ✅ `test_jerarquia.py` verifica `1♠ > 1♣ > 7♠ > 7oro > 3 > 2 > 1falso > 12 > 11 > 10 > 7falso > 6 > 5 > 4`, y que dos cartas de igual rango dan **parda**.
 
-### M2 — Motor de la ronda (solo bazas, sin cantos)
+### M2 — Motor de la ronda (solo bazas, sin cantos)  ✅ HECHO
 - 🎯 Jugar una ronda completa de 3 bazas y saber quién ganó.
 - 🛠️ `core/state.py` (`GameState` completo + `ObservableState` por jugador), `core/engine.py` con `legal_actions()`, `step(action)`, `observation_for(jugador)`. Resolución de bazas + desempate por "mano".
 - 🧠 Máquina de estados; **la distinción estado completo vs observable** (clave para el ML futuro).

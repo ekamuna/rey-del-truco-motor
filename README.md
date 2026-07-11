@@ -33,7 +33,7 @@ Python 3.11+ · pytest · mypy · (fase ML) PyTorch + Gymnasium · CLI con rich/
 
 ## Estado
 
-🛠️ **En construcción** — M0 (setup) y M1 (cartas y jerarquía) ✅ listos. Próximo: **M2 (motor de la ronda y las bazas)**.
+🛠️ **En construcción** — M0 (setup), M1 (cartas y jerarquía) y M2 (motor de la ronda y las bazas) ✅ listos. Próximo: **M3 (CLI jugable + interfaz de Agente)**.
 
 ### Cómo correr
 ```bash
