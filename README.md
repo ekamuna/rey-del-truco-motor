@@ -33,11 +33,12 @@ Python 3.11+ · pytest · mypy · (fase ML) PyTorch + Gymnasium · CLI con rich/
 
 ## Estado
 
-🛠️ **En construcción** — M0 (setup), M1 (cartas y jerarquía) y M2 (motor de la ronda y las bazas) ✅ listos. Próximo: **M3 (CLI jugable + interfaz de Agente)**.
+🛠️ **En construcción** — M0–M3 ✅ listos (motor + CLI jugable). Próximo: **M4 (truco cantado + bot de reglas)**.
 
 ### Cómo correr
 ```bash
 uv sync            # crea el entorno (Python 3.12 + deps)
+uv run truco       # ¡jugá una ronda contra la máquina!
 uv run pytest      # tests
 uv run ruff check . && uv run mypy   # linter + type-checker
 ```

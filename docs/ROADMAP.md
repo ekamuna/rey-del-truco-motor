@@ -36,7 +36,7 @@ setup  cartas  motor   jugar   reglas  envido   ML/RL   web/CFR
 
 ## 🎮 Fase 1 — Jugar contra la máquina (con reglas, sin ML)
 
-### M3 — CLI jugable + agente humano y aleatorio
+### M3 — CLI jugable + agente humano y aleatorio  ✅ HECHO
 - 🎯 Poder sentarse y jugar por terminal.
 - 🛠️ `agents/base.py` (interfaz `Agent`), `agents/human.py` (lee de CLI), `agents/random.py` (baseline), `game_loop.py`, `ui/cli.py`.
 - 🧠 Cómo el mismo loop sirve para cualquier agente; el humano es "un agente más".
