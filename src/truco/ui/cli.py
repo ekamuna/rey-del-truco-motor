@@ -16,7 +16,7 @@ import argparse
 import random
 from collections.abc import Callable
 
-from truco.agents.reglas import AgenteReglas
+from truco.agents.reglas import AgenteReglas, ConfigReglas
 from truco.core.acciones import Accion
 from truco.core.engine import nueva_ronda
 from truco.core.state import EstadoRonda
@@ -50,9 +50,14 @@ def main(
     almacen = almacen or AlmacenDePerfiles()
     perfil = almacen.cargar(usuario)
 
-    humano = AgenteHumano(leer=leer, escribir=escribir)
-    maquina = AgenteReglas(perfil=perfil)
     rng = random.Random(seed)
+    humano = AgenteHumano(leer=leer, escribir=escribir)
+    # La máquina farolea (miente a veces): más seguido si te lee miedoso.
+    maquina = AgenteReglas(
+        config=ConfigReglas(frecuencia_farol=0.25),
+        perfil=perfil,
+        seed=rng.randrange(2**31),
+    )
     puntos = (0, 0)
     mano = 0
     numero = 0

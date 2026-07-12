@@ -6,13 +6,17 @@ Traduce a código las heurísticas del truco: cuándo cantar envido/truco, cómo
 responder, qué carta jugar y cuándo guardar las bravas. Los umbrales son
 configurables (:class:`ConfigReglas`).
 
-Si se le pasa un :class:`PerfilDelRival`, **ajusta esos umbrales según la fama
-del rival**: le acepta el truco/envido con manos más flojas si es mentiroso, y
-lo farolea más si es miedoso. Sigue siendo determinista e interpretable.
+Si se le pasa un :class:`PerfilDelRival`, **ajusta según la fama del rival**: le
+acepta el truco/envido con manos más flojas si es mentiroso, y lo **farolea más
+si es miedoso** (y menos si es de los que pagan para ver).
+
+El faroleo (``frecuencia_farol > 0``) mezcla mentiras usando un RNG con semilla:
+impredecible para el rival, reproducible para nosotros y para los tests.
 """
 
 from __future__ import annotations
 
+import random
 from dataclasses import dataclass
 
 from truco.agents.base import Agent
@@ -39,7 +43,10 @@ class ConfigReglas:
     ancla_perfil: float = 0.30  # punto neutro (media del prior): con esto no se ajusta
     k_aceptar_truco: int = 8  # cuánto baja el umbral vs un mentiroso de truco
     k_aceptar_envido: int = 12  # ídem para el envido
-    k_farolear_truco: int = 6  # cuánto baja el umbral para farolear a un miedoso
+    # --- Faroleo: mentir con mano fea (necesita azar; 0 = nunca farolea) ---
+    frecuencia_farol: float = 0.0  # prob. base de farolear cuando la mano no da para cantar
+    farol_envido_min: int = 23  # tanto mínimo para farolear el envido (semi-farol)
+    escala_miedo_farol: float = 1.5  # cuánto más/menos farolear según lo miedoso del rival
 
 
 class AgenteReglas(Agent):
@@ -47,9 +54,11 @@ class AgenteReglas(Agent):
         self,
         config: ConfigReglas | None = None,
         perfil: PerfilDelRival | None = None,
+        seed: int | None = None,
     ) -> None:
         self.cfg = config or ConfigReglas()
         self.perfil = perfil
+        self._rng = random.Random(seed)  # para farolear de forma impredecible pero reproducible
 
     # --- Observación del rival (acumula estadística; no "aprende" en el sentido fuerte) ---
 
@@ -76,17 +85,18 @@ class AgenteReglas(Agent):
     # --- Cantar (mi turno) ---------------------------------------------------
 
     def _considerar_canto(self, obs: EstadoObservable, tipos: set[TipoAccion]) -> Accion | None:
+        # Canto de VALOR (honesto): con buena mano.
         if TipoAccion.ENVIDO in tipos and obs.mi_tanto >= self.cfg.cantar_envido:
             if obs.mi_tanto >= self.cfg.real_envido and TipoAccion.REAL_ENVIDO in tipos:
                 return Accion(TipoAccion.REAL_ENVIDO)
             return Accion(TipoAccion.ENVIDO)
-        # Cantar truco: con mano fuerte, o farolear si el rival es miedoso.
-        if TipoAccion.TRUCO in tipos and self._fuerza_maxima(obs) >= self._umbral_cantar_truco(obs):
+        if TipoAccion.TRUCO in tipos and self._fuerza_maxima(obs) >= self.cfg.cantar_truco_fuerza:
             return Accion(TipoAccion.TRUCO)
         for subir in (TipoAccion.RETRUCO, TipoAccion.VALE_CUATRO):
             if subir in tipos and self._fuerza_maxima(obs) >= self.cfg.retruco_fuerza:
                 return Accion(subir)
-        return None
+        # Si la mano no daba, tal vez un FAROL (mentira con probabilidad).
+        return self._intento_de_farol(obs, tipos)
 
     # --- Responder envido ----------------------------------------------------
 
@@ -120,11 +130,6 @@ class AgenteReglas(Agent):
         ajuste = self._peso(obs, Faceta.MENTIROSO_ENVIDO, self.cfg.k_aceptar_envido)
         return max(0, self.cfg.querer_envido - ajuste)
 
-    def _umbral_cantar_truco(self, obs: EstadoObservable) -> int:
-        # Rival miedoso → bajo el listón para cantar (lo faroleo).
-        ajuste = self._peso(obs, Faceta.MIEDOSO, self.cfg.k_farolear_truco)
-        return max(0, self.cfg.cantar_truco_fuerza - ajuste)
-
     def _peso(self, obs: EstadoObservable, faceta: Faceta, k: int) -> int:
         """Cuánto correr un umbral según una faceta del rival (0 si no hay perfil)."""
         if self.perfil is None:
@@ -137,6 +142,33 @@ class AgenteReglas(Agent):
         rival = 1 - obs.jugador
         umbral = self.perfil.config.umbral_contexto if self.perfil is not None else 3
         return contexto_del(obs.puntos_partida[rival], obs.puntos_partida[obs.jugador], umbral)
+
+    # --- Faroleo (mentir con mano fea) ---------------------------------------
+
+    def _intento_de_farol(self, obs: EstadoObservable, tipos: set[TipoAccion]) -> Accion | None:
+        """Con cierta probabilidad, canta de mentira. Devuelve el canto o None."""
+        if self.cfg.frecuencia_farol <= 0.0:
+            return None
+        probabilidad = self.cfg.frecuencia_farol * self._factor_miedo(obs)
+        if self._rng.random() >= probabilidad:
+            return None
+        # Prefiere el semi-farol al truco; si no, un farol de envido (tanto no tan fino).
+        if TipoAccion.TRUCO in tipos and self._fuerza_maxima(obs) < self.cfg.cantar_truco_fuerza:
+            return Accion(TipoAccion.TRUCO)
+        if (
+            TipoAccion.ENVIDO in tipos
+            and self.cfg.farol_envido_min <= obs.mi_tanto < self.cfg.cantar_envido
+        ):
+            return Accion(TipoAccion.ENVIDO)
+        return None
+
+    def _factor_miedo(self, obs: EstadoObservable) -> float:
+        """Farolear más al miedoso y menos al que paga para ver (1.0 sin perfil)."""
+        if self.perfil is None:
+            return 1.0
+        miedoso = self.perfil.estimar(Faceta.MIEDOSO, self._contexto(obs))
+        factor = 1.0 + (miedoso - self.cfg.ancla_perfil) * self.cfg.escala_miedo_farol
+        return max(0.2, min(2.0, factor))
 
     # --- Elegir carta --------------------------------------------------------
 
