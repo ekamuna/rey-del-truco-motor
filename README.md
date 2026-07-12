@@ -33,13 +33,15 @@ Python 3.11+ · pytest · mypy · (fase ML) PyTorch + Gymnasium · CLI con rich/
 
 ## Estado
 
-🛠️ **En construcción** — M0–M5 ✅ + **PerfilDelRival** ✅ + **faroleo** ✅. Motor completo (envido + truco + partida), CLI jugable, bot de reglas que le gana **~91%** al azar, **opponent modeling** (el bot te lee y arma tu fama por usuario) y **faroleo** (miente con mano fea, más seguido al miedoso). Próximo: **M6 (Machine Learning — RL por self-play)**.
+🛠️ **En construcción** — M0–M5 ✅ + **PerfilDelRival** ✅ + **faroleo** ✅ + **M6 (RL, Q-learning tabular)** ✅. Motor completo, CLI clara, bot de reglas (~91% vs azar), **opponent modeling** (el bot te lee y arma tu fama por usuario), **faroleo**, y un **agente que aprende su estrategia solo** por refuerzo (**96% vs azar** tras entrenar; el "modelo" es una tabla legible). Próximo: refinar el RL (self-play estable / red neuronal).
 
 ### Cómo correr
 ```bash
 uv sync                          # crea el entorno (Python 3.12 + deps)
-uv run truco                     # jugá contra la máquina (usuario "invitado")
+uv run truco                     # jugá vs el bot de reglas (con perfil + faroleo)
 uv run truco --usuario emmanuel  # con tu perfil: el bot te va conociendo
+uv run truco --rival q           # jugá vs la IA entrenada por refuerzo
+uv run truco-entrenar            # entrená el agente Q y mirá subir la curva
 uv run pytest                    # tests
 uv run ruff check . && uv run mypy   # linter + type-checker
 ```

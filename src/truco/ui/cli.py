@@ -15,7 +15,9 @@ from __future__ import annotations
 import argparse
 import random
 from collections.abc import Callable
+from pathlib import Path
 
+from truco.agents.base import Agent
 from truco.agents.reglas import AgenteReglas, ConfigReglas
 from truco.core.acciones import Accion
 from truco.core.engine import nueva_ronda
@@ -23,6 +25,8 @@ from truco.core.state import EstadoRonda
 from truco.game_loop import jugar_ronda
 from truco.perfil import Faceta, PerfilDelRival
 from truco.perfil.almacen import AlmacenDePerfiles
+from truco.rl.agente_q import AgenteQ
+from truco.rl.qtable import QTable
 from truco.ui.humano import AgenteHumano
 from truco.ui.narrador import (
     encabezado_ronda,
@@ -46,18 +50,15 @@ def main(
     usuario: str = "invitado",
     leer: Callable[[str], str] = input,
     almacen: AlmacenDePerfiles | None = None,
+    rival: str = "reglas",
+    modelo: str = "modelos/qtable.json",
 ) -> None:
     almacen = almacen or AlmacenDePerfiles()
     perfil = almacen.cargar(usuario)
 
     rng = random.Random(seed)
     humano = AgenteHumano(leer=leer, escribir=escribir)
-    # La máquina farolea (miente a veces): más seguido si te lee miedoso.
-    maquina = AgenteReglas(
-        config=ConfigReglas(frecuencia_farol=0.25),
-        perfil=perfil,
-        seed=rng.randrange(2**31),
-    )
+    maquina = _crear_maquina(rival, perfil, rng, modelo, escribir)
     puntos = (0, 0)
     mano = 0
     numero = 0
@@ -86,6 +87,26 @@ def main(
     escribir(_fama(usuario, perfil))
 
 
+def _crear_maquina(
+    rival: str,
+    perfil: PerfilDelRival,
+    rng: random.Random,
+    modelo: str,
+    escribir: Callable[[str], None],
+) -> Agent:
+    """Elige el oponente: el bot de reglas (con perfil + faroleo) o la IA entrenada."""
+    if rival == "q":
+        ruta = Path(modelo)
+        if ruta.exists():
+            escribir("Rival: IA entrenada por refuerzo (RL). 🤖")
+            return AgenteQ(QTable.cargar(ruta))
+        escribir(f"(No encontré el modelo {ruta}; entrenalo con 'uv run truco-entrenar'.)")
+    # La máquina de reglas farolea (miente a veces): más seguido si te lee miedoso.
+    return AgenteReglas(
+        config=ConfigReglas(frecuencia_farol=0.25), perfil=perfil, seed=rng.randrange(2**31)
+    )
+
+
 def _fama(usuario: str, perfil: PerfilDelRival) -> str:
     """Resumen legible de lo que el bot cree saber del jugador."""
     lineas = [f"── Ficha de {usuario} ──"]
@@ -109,8 +130,15 @@ def cli() -> None:
         "--usuario", default="invitado", help="tu nombre de usuario (guarda tu perfil)"
     )
     parser.add_argument("--seed", type=int, default=None, help="semilla para reproducir la partida")
+    parser.add_argument(
+        "--rival",
+        default="reglas",
+        choices=["reglas", "q"],
+        help="reglas (default) o q (IA entrenada)",
+    )
+    parser.add_argument("--modelo", default="modelos/qtable.json", help="ruta del modelo (rival q)")
     args = parser.parse_args()
-    main(seed=args.seed, usuario=args.usuario)
+    main(seed=args.seed, usuario=args.usuario, rival=args.rival, modelo=args.modelo)
 
 
 if __name__ == "__main__":

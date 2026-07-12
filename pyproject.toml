@@ -8,6 +8,7 @@ dependencies = []
 
 [project.scripts]
 truco = "truco.ui.cli:cli"
+truco-entrenar = "truco.rl.entrenar:main"
 
 [dependency-groups]
 dev = [

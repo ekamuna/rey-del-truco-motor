@@ -62,7 +62,16 @@ setup  cartas  motor   jugar   reglas  envido   ML/RL   web/CFR
 
 ## 🤖 Fase 3 — Machine Learning (el objetivo de aprendizaje)
 
-### M6 — RL por self-play  ⭐ *acá aprendés ML de verdad*
+### M6 — RL (Q-learning tabular)  ⭐ *acá aprendés ML de verdad*  ✅ v1 HECHO
+- ✅ **Hecho (v1):** `truco.rl` — abstracción de estado, tabla Q (el "modelo", legible/JSON),
+  entrenamiento por refuerzo (Monte Carlo control) y `AgenteQ`. Entrena en **segundos, sin GPU**.
+  Aprende las **apuestas** (cantar/querer/no querer); la carta la elige una heurística fija.
+  Curva vs Aleatorio **63% → 96%**; con currículum llega a ~**54%** vs el bot de reglas.
+  `uv run truco-entrenar` · jugar: `uv run truco --rival q`.
+- ⚠️ **Aprendizajes del camino:** recompensa por *diferencia de puntos* → "trampa del fold seguro"
+  (se va al mazo siempre); se arregla con recompensa **ganar/perder**. El self-play ingenuo (tabla
+  compartida) es inestable → v1 entrena contra rival fijo.
+- 🔜 **Siguiente:** self-play estable, o red neuronal (el techo, M7).
 - 🎯 Un agente que **aprende su estrategia solo**, sin reglas escritas a mano.
 - 🛠️ `rl/env.py` (envoltorio Gymnasium `reset()`/`step()`), `rl/encoder.py` (vectoriza `ObservableState` → tensor: one-hot de cartas, flags de cantos, puntos), *action masking* con las acciones legales, `rl/selfplay.py` + `rl/train.py` (PPO o REINFORCE). Arrancar chico: **Q-learning tabular** en una versión reducida antes de las redes. Curriculum: Random → RuleBased → self-play; pool de checkpoints.
 - 🧠 Qué significa que una máquina **aprenda de la experiencia**: recompensa sparse (+1/−1), reproducibilidad (semillas), curriculum, evitar el "olvido".
