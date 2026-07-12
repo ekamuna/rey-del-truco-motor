@@ -1,7 +1,7 @@
 """Tests de integración: el bot usa el perfil para ajustar sus decisiones."""
 
 from truco.agents.aleatorio import AgenteAleatorio
-from truco.agents.reglas import AgenteReglas
+from truco.agents.reglas import AgenteReglas, ConfigReglas
 from truco.core.acciones import Accion, TipoAccion, canto
 from truco.core.cards import Carta, Palo
 from truco.core.engine import acciones_legales, aplicar, iniciar, nueva_ronda, observacion_de
@@ -31,6 +31,15 @@ def test_con_perfil_de_mentiroso_acepta_el_mismo_truco() -> None:
     perfil.conteos["mentiroso_truco|parejo"] = (9, 10)  # miente el ~70% (con prior)
     obs, acc = _situacion_respondiendo_truco()
     assert AgenteReglas(perfil=perfil).actuar(obs, acc).tipo is TipoAccion.QUIERO
+
+
+def test_con_k_en_cero_ignora_el_perfil() -> None:
+    # Configurar el peso del ajuste en 0 hace que el bot no use el perfil.
+    perfil = PerfilDelRival("mentiroso")
+    perfil.conteos["mentiroso_truco|parejo"] = (9, 10)
+    obs, acc = _situacion_respondiendo_truco()
+    bot = AgenteReglas(ConfigReglas(k_aceptar_truco=0), perfil=perfil)
+    assert bot.actuar(obs, acc).tipo is TipoAccion.NO_QUIERO
 
 
 def test_perfil_aprende_jugando_varias_rondas() -> None:

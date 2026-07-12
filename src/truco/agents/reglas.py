@@ -23,26 +23,23 @@ from truco.perfil import Contexto, Faceta, PerfilDelRival
 from truco.perfil.facetas import contexto_del
 from truco.trayectoria import Paso
 
-_FUERZA_BRAVA = 10
-_FUERZA_ALTA = 8
-
-#: Punto neutro del perfil (media del prior): con este valor no se ajusta nada.
-_ANCLA = 0.30
-#: Cuánto pesa cada faceta al correr los umbrales.
-_K_ACEPTAR_TRUCO = 8
-_K_ACEPTAR_ENVIDO = 12
-_K_FAROLEAR_TRUCO = 6
-
 
 @dataclass(frozen=True)
 class ConfigReglas:
-    """Umbrales ajustables del bot de reglas."""
+    """Todas las aristas ajustables del bot: umbrales base + ajuste por perfil."""
 
-    cantar_envido: int = 27
-    real_envido: int = 31
-    querer_envido: int = 27
-    cantar_truco_fuerza: int = _FUERZA_BRAVA
-    querer_truco_fuerza: int = _FUERZA_ALTA
+    # --- Umbrales base (sin mirar el perfil) ---
+    cantar_envido: int = 27  # tanto mínimo para cantar envido
+    real_envido: int = 31  # tanto para escalar a real envido
+    querer_envido: int = 27  # tanto mínimo para querer un envido
+    cantar_truco_fuerza: int = 10  # fuerza de la mejor carta para cantar truco (una brava)
+    querer_truco_fuerza: int = 8  # fuerza para querer un truco (un 2 o mejor)
+    retruco_fuerza: int = 12  # fuerza para subir a retruco / vale cuatro
+    # --- Ajuste por el perfil del rival (0 = ignorar el perfil) ---
+    ancla_perfil: float = 0.30  # punto neutro (media del prior): con esto no se ajusta
+    k_aceptar_truco: int = 8  # cuánto baja el umbral vs un mentiroso de truco
+    k_aceptar_envido: int = 12  # ídem para el envido
+    k_farolear_truco: int = 6  # cuánto baja el umbral para farolear a un miedoso
 
 
 class AgenteReglas(Agent):
@@ -54,7 +51,7 @@ class AgenteReglas(Agent):
         self.cfg = config or ConfigReglas()
         self.perfil = perfil
 
-    # --- Aprendizaje del rival ----------------------------------------------
+    # --- Observación del rival (acumula estadística; no "aprende" en el sentido fuerte) ---
 
     def observar_ronda(self, mi_jugador: int, trayectoria: tuple[Paso, ...]) -> None:
         if self.perfil is not None:
@@ -87,7 +84,7 @@ class AgenteReglas(Agent):
         if TipoAccion.TRUCO in tipos and self._fuerza_maxima(obs) >= self._umbral_cantar_truco(obs):
             return Accion(TipoAccion.TRUCO)
         for subir in (TipoAccion.RETRUCO, TipoAccion.VALE_CUATRO):
-            if subir in tipos and self._fuerza_maxima(obs) >= _FUERZA_BRAVA + 2:
+            if subir in tipos and self._fuerza_maxima(obs) >= self.cfg.retruco_fuerza:
                 return Accion(subir)
         return None
 
@@ -106,7 +103,7 @@ class AgenteReglas(Agent):
     def _responder_truco(self, obs: EstadoObservable, tipos: set[TipoAccion]) -> Accion:
         fuerza = self._fuerza_maxima(obs)
         gane_una = any(b.ganador == obs.jugador for b in obs.bazas)
-        if fuerza >= _FUERZA_BRAVA + 2 and TipoAccion.RETRUCO in tipos:
+        if fuerza >= self.cfg.retruco_fuerza and TipoAccion.RETRUCO in tipos:
             return Accion(TipoAccion.RETRUCO)
         if fuerza >= self._umbral_querer_truco(obs) or gane_una:
             return Accion(TipoAccion.QUIERO)
@@ -116,16 +113,16 @@ class AgenteReglas(Agent):
 
     def _umbral_querer_truco(self, obs: EstadoObservable) -> int:
         # Rival mentiroso en el truco → le acepto con manos más flojas.
-        ajuste = self._peso(obs, Faceta.MENTIROSO_TRUCO, _K_ACEPTAR_TRUCO)
+        ajuste = self._peso(obs, Faceta.MENTIROSO_TRUCO, self.cfg.k_aceptar_truco)
         return max(0, self.cfg.querer_truco_fuerza - ajuste)
 
     def _umbral_querer_envido(self, obs: EstadoObservable) -> int:
-        ajuste = self._peso(obs, Faceta.MENTIROSO_ENVIDO, _K_ACEPTAR_ENVIDO)
+        ajuste = self._peso(obs, Faceta.MENTIROSO_ENVIDO, self.cfg.k_aceptar_envido)
         return max(0, self.cfg.querer_envido - ajuste)
 
     def _umbral_cantar_truco(self, obs: EstadoObservable) -> int:
         # Rival miedoso → bajo el listón para cantar (lo faroleo).
-        ajuste = self._peso(obs, Faceta.MIEDOSO, _K_FAROLEAR_TRUCO)
+        ajuste = self._peso(obs, Faceta.MIEDOSO, self.cfg.k_farolear_truco)
         return max(0, self.cfg.cantar_truco_fuerza - ajuste)
 
     def _peso(self, obs: EstadoObservable, faceta: Faceta, k: int) -> int:
@@ -134,12 +131,12 @@ class AgenteReglas(Agent):
             return 0
         contexto = self._contexto(obs)
         tasa = self.perfil.estimar(faceta, contexto)
-        return round(k * max(0.0, tasa - _ANCLA))
+        return round(k * max(0.0, tasa - self.cfg.ancla_perfil))
 
-    @staticmethod
-    def _contexto(obs: EstadoObservable) -> Contexto:
+    def _contexto(self, obs: EstadoObservable) -> Contexto:
         rival = 1 - obs.jugador
-        return contexto_del(obs.puntos_partida[rival], obs.puntos_partida[obs.jugador])
+        umbral = self.perfil.config.umbral_contexto if self.perfil is not None else 3
+        return contexto_del(obs.puntos_partida[rival], obs.puntos_partida[obs.jugador], umbral)
 
     # --- Elegir carta --------------------------------------------------------
 

@@ -158,6 +158,27 @@ La decisión sigue siendo `if/else` legible; el perfil solo **mueve los números
 
 ---
 
+## 9-bis. Terminología (importante) y parámetros configurables
+
+**Ojo con la palabra "aprende".** Está sobrevalorada acá: el sistema no "entiende"
+nada. **Acumula una estadística (cuenta) y decide comparando un número contra un
+umbral.** Es más honesto decir "guarda y estima" que "aprende". (En la jerga del
+ML igual se le dice "aprender parámetros de datos", pero conviene tener claro qué
+es lo que realmente pasa: contar y dividir.)
+
+**Todas las aristas son configurables** (para poder revisarlas sin tocar la lógica):
+
+- `ConfigPerfil` (cómo se *mide* la fama):
+  - `fuerza_mano_debil` (qué es "mano fea" para detectar un farol de truco) — **definición
+    provisoria a revisar**: hoy es "la mejor carta no llega a un 2".
+  - `tanto_envido_bajo` (qué tanto es "bajo" para un farol de envido).
+  - `prior_alfa` / `prior_beta` (la opinión previa / las "partidas imaginarias").
+  - `umbral_contexto` (diferencia de puntos para ganando/perdiendo).
+- `ConfigReglas` (cómo se *usa* la fama):
+  - `k_aceptar_truco`, `k_aceptar_envido`, `k_farolear_truco` (cuánto pesa cada faceta).
+  - `ancla_perfil` (punto neutro: con la estimación en este valor, no se ajusta nada).
+  - Poniendo los `k` en 0, el bot ignora el perfil por completo.
+
 ## 10. Por qué este es el paso ideal antes del ML
 
 - Es **interpretable**: entendés cada decisión (a diferencia de una red neuronal).

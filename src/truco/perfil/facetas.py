@@ -1,10 +1,15 @@
-"""Facetas del perfil, contextos y constantes del modelado.
+"""Facetas del perfil, contextos y parámetros configurables del modelado.
 
 Referencia: ``docs/PERFIL-DEL-RIVAL.md`` §4-§6.
+
+Ojo con el vocabulario: esto no "aprende" en el sentido fuerte; **acumula una
+estadística y estima un número**. Todas las "aristas" (qué es una mano débil, el
+prior, los umbrales de contexto) son **configurables** en :class:`ConfigPerfil`.
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from enum import Enum
 
 
@@ -24,24 +29,30 @@ class Contexto(Enum):
     PERDIENDO = "perdiendo"
 
 
-#: Prior neutral (creencia inicial ~30%, con peso de ~5 observaciones). Evita que
-#: una sola jugada dé "100% mentiroso". Modelo Beta-Bernoulli: media = α/(α+β).
-PRIOR_ALFA = 1.5
-PRIOR_BETA = 3.5
+@dataclass(frozen=True)
+class ConfigPerfil:
+    """Todas las aristas ajustables del modelado del rival.
 
-#: Una mano es "débil" para el truco si su mejor carta no llega a un 2 (fuerza < 8).
-FUERZA_MANO_DEBIL = 8
-#: Un tanto de envido es "bajo" si es menor a esto.
-TANTO_ENVIDO_BAJO = 27
-#: Diferencia de puntos para considerar que un jugador va ganando/perdiendo.
-UMBRAL_CONTEXTO = 3
+    Cambiar cualquiera de estas afina *cómo se mide* la fama, sin tocar la lógica.
+    """
+
+    #: Opinión previa (prior Beta): "mentiras" y "sinceras" imaginarias. Media = α/(α+β).
+    prior_alfa: float = 1.5  # con β=3.5 → creencia inicial 30%
+    prior_beta: float = 3.5
+    #: Cantar truco con la mejor carta por debajo de esta fuerza cuenta como farol.
+    #: (fuerza 8 = un 2; por debajo, no hay ni un 2). ← definición a revisar más adelante.
+    fuerza_mano_debil: int = 8
+    #: Cantar envido con un tanto menor a esto cuenta como farol de envido.
+    tanto_envido_bajo: int = 27
+    #: Diferencia de puntos para considerar que el jugador va ganando/perdiendo.
+    umbral_contexto: int = 3
 
 
-def contexto_del(mis_puntos: int, puntos_rival: int) -> Contexto:
+def contexto_del(mis_puntos: int, puntos_rival: int, umbral: int = 3) -> Contexto:
     """Contexto desde la óptica del jugador modelado, según el marcador."""
     diferencia = mis_puntos - puntos_rival
-    if diferencia <= -UMBRAL_CONTEXTO:
+    if diferencia <= -umbral:
         return Contexto.PERDIENDO
-    if diferencia >= UMBRAL_CONTEXTO:
+    if diferencia >= umbral:
         return Contexto.GANANDO
     return Contexto.PAREJO

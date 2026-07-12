@@ -4,7 +4,7 @@ from truco.core.acciones import Accion, TipoAccion, canto
 from truco.core.cards import Carta, Palo
 from truco.core.engine import actor, aplicar, iniciar
 from truco.core.state import EstadoRonda
-from truco.perfil import Contexto, Faceta, PerfilDelRival
+from truco.perfil import ConfigPerfil, Contexto, Faceta, PerfilDelRival
 from truco.trayectoria import Paso
 
 DEBIL = (Carta(4, Palo.ORO), Carta(5, Palo.COPA), Carta(6, Palo.BASTO))  # fuerza máx 2, tanto 6
@@ -91,3 +91,27 @@ def test_estimacion_global_agrupa_contextos() -> None:
     assert p.intentos_global(Faceta.MENTIROSO_TRUCO) == 8
     # (2+3 + 1.5) / (8 + 5) = 6.5/13 = 0.5
     assert abs(p.estimar_global(Faceta.MENTIROSO_TRUCO) - 0.5) < 0.01
+
+
+# --- Configurabilidad ---------------------------------------------------------
+
+
+def test_prior_configurable() -> None:
+    p = PerfilDelRival("x", config=ConfigPerfil(prior_alfa=5.0, prior_beta=5.0))
+    assert abs(p.estimar(Faceta.MENTIROSO_TRUCO, Contexto.PAREJO) - 0.5) < 0.01  # 5/10
+
+
+def test_definicion_de_mano_debil_configurable() -> None:
+    # Mano cuyo mejor carta es un 3 (fuerza 9). Cantó truco con eso.
+    mano_con_tres = (Carta(3, Palo.ORO), Carta(4, Palo.COPA), Carta(5, Palo.BASTO))
+    tray = reproducir(iniciar(FUERTE, mano_con_tres, mano=1), [canto(TipoAccion.TRUCO)])
+
+    laxo = PerfilDelRival("a", config=ConfigPerfil(fuerza_mano_debil=8))
+    laxo.actualizar(1, tray)
+    estricto = PerfilDelRival("b", config=ConfigPerfil(fuerza_mano_debil=10))
+    estricto.actualizar(1, tray)
+
+    # Con umbral 8, un 3 (fuerza 9) NO es débil → no es mentira → baja.
+    assert laxo.estimar(Faceta.MENTIROSO_TRUCO, Contexto.PAREJO) < 0.30
+    # Con umbral 10 (exige brava), un 3 SÍ es débil → es mentira → sube.
+    assert estricto.estimar(Faceta.MENTIROSO_TRUCO, Contexto.PAREJO) > 0.30

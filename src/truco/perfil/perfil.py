@@ -19,10 +19,7 @@ from truco.core.acciones import (
 )
 from truco.core.cards import fuerza_truco
 from truco.perfil.facetas import (
-    FUERZA_MANO_DEBIL,
-    PRIOR_ALFA,
-    PRIOR_BETA,
-    TANTO_ENVIDO_BAJO,
+    ConfigPerfil,
     Contexto,
     Faceta,
     contexto_del,
@@ -40,17 +37,22 @@ _RESPUESTAS_A_TRUCO = (
 
 @dataclass
 class PerfilDelRival:
-    """Fama acumulada de un usuario. Persistible como diccionario/JSON."""
+    """Fama acumulada de un usuario. Persistible como diccionario/JSON.
+
+    ``config`` define las aristas del modelado (prior, qué es mano débil, etc.).
+    No se persiste: es una decisión de afinado, no dato del jugador.
+    """
 
     usuario: str
     conteos: dict[str, tuple[int, int]] = field(default_factory=dict)
+    config: ConfigPerfil = field(default_factory=ConfigPerfil)
 
     # --- Consulta ------------------------------------------------------------
 
     def estimar(self, faceta: Faceta, contexto: Contexto) -> float:
         """Probabilidad estimada de la faceta en ese contexto (suavizada por el prior)."""
         exitos, intentos = self.conteos.get(_clave(faceta, contexto), (0, 0))
-        return (exitos + PRIOR_ALFA) / (intentos + PRIOR_ALFA + PRIOR_BETA)
+        return self._suavizar(exitos, intentos)
 
     def intentos(self, faceta: Faceta, contexto: Contexto) -> int:
         """Cuántas observaciones reales hay (confianza) de esa faceta/contexto."""
@@ -63,7 +65,11 @@ class PerfilDelRival:
     def estimar_global(self, faceta: Faceta) -> float:
         """Estimación de la faceta agrupando todos los contextos."""
         exitos = sum(self.conteos.get(_clave(faceta, c), (0, 0))[0] for c in Contexto)
-        return (exitos + PRIOR_ALFA) / (self.intentos_global(faceta) + PRIOR_ALFA + PRIOR_BETA)
+        return self._suavizar(exitos, self.intentos_global(faceta))
+
+    def _suavizar(self, exitos: int, intentos: int) -> float:
+        alfa, beta = self.config.prior_alfa, self.config.prior_beta
+        return (exitos + alfa) / (intentos + alfa + beta)
 
     # --- Actualización -------------------------------------------------------
 
@@ -76,10 +82,14 @@ class PerfilDelRival:
         mano_rival = inicial.manos[rival]
         fuerza_max = max((fuerza_truco(c) for c in mano_rival), default=0)
         tanto_rival = inicial.tantos[rival]
-        contexto = contexto_del(inicial.puntos_partida[rival], inicial.puntos_partida[1 - rival])
+        contexto = contexto_del(
+            inicial.puntos_partida[rival],
+            inicial.puntos_partida[1 - rival],
+            self.config.umbral_contexto,
+        )
 
-        mano_debil = fuerza_max < FUERZA_MANO_DEBIL
-        tanto_bajo = tanto_rival < TANTO_ENVIDO_BAJO
+        mano_debil = fuerza_max < self.config.fuerza_mano_debil
+        tanto_bajo = tanto_rival < self.config.tanto_envido_bajo
 
         for paso in trayectoria:
             if paso.quien != rival:
@@ -111,11 +121,17 @@ class PerfilDelRival:
         }
 
     @classmethod
-    def desde_dict(cls, datos: dict[str, object]) -> PerfilDelRival:
+    def desde_dict(
+        cls, datos: dict[str, object], config: ConfigPerfil | None = None
+    ) -> PerfilDelRival:
         crudos = datos.get("conteos", {})
         assert isinstance(crudos, dict)
         conteos = {k: (int(v[0]), int(v[1])) for k, v in crudos.items()}
-        return cls(usuario=str(datos["usuario"]), conteos=conteos)
+        return cls(
+            usuario=str(datos["usuario"]),
+            conteos=conteos,
+            config=config or ConfigPerfil(),
+        )
 
 
 def _clave(faceta: Faceta, contexto: Contexto) -> str:

@@ -11,6 +11,7 @@ import json
 import re
 from pathlib import Path
 
+from truco.perfil.facetas import ConfigPerfil
 from truco.perfil.perfil import PerfilDelRival
 
 #: Carpeta por defecto donde se guardan los perfiles (datos del usuario, local).
@@ -23,13 +24,18 @@ class AlmacenDePerfiles:
     def __init__(self, directorio: Path = DIR_PERFILES) -> None:
         self._dir = directorio
 
-    def cargar(self, usuario: str) -> PerfilDelRival:
-        """Devuelve el perfil del usuario; si no existe, uno nuevo vacío."""
+    def cargar(self, usuario: str, config: ConfigPerfil | None = None) -> PerfilDelRival:
+        """Devuelve el perfil del usuario; si no existe, uno nuevo vacío.
+
+        ``config`` (aristas del modelado) se aplica al perfil cargado; no se
+        persiste, así se puede reajustar sin migrar los datos guardados.
+        """
+        config = config or ConfigPerfil()
         ruta = self._ruta(usuario)
         if not ruta.exists():
-            return PerfilDelRival(usuario=usuario)
+            return PerfilDelRival(usuario=usuario, config=config)
         datos = json.loads(ruta.read_text(encoding="utf-8"))
-        return PerfilDelRival.desde_dict(datos)
+        return PerfilDelRival.desde_dict(datos, config=config)
 
     def guardar(self, perfil: PerfilDelRival) -> None:
         self._dir.mkdir(parents=True, exist_ok=True)
