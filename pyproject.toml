@@ -7,7 +7,7 @@ requires-python = ">=3.11"
 dependencies = []
 
 [project.scripts]
-truco = "truco.ui.cli:main"
+truco = "truco.ui.cli:cli"
 
 [dependency-groups]
 dev = [

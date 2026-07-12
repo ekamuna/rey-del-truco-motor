@@ -13,6 +13,9 @@ logs/
 *.pt
 wandb/
 
+# Perfiles de usuario (datos locales del jugador)
+perfiles/
+
 # OS / editor
 .DS_Store
 .idea/

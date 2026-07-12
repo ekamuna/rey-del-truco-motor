@@ -13,6 +13,7 @@ from abc import ABC, abstractmethod
 
 from truco.core.acciones import Accion
 from truco.core.state import EstadoObservable
+from truco.trayectoria import Paso
 
 
 class Agent(ABC):
@@ -28,5 +29,13 @@ class Agent(ABC):
 
         Sólo lo usa el agente de aprendizaje por refuerzo (M6); los demás lo
         ignoran. Con ``+1`` ganó, ``-1`` perdió.
+        """
+        return None
+
+    def observar_ronda(self, mi_jugador: int, trayectoria: tuple[Paso, ...]) -> None:
+        """Notifica la ronda completa (con cartas reveladas) al terminar.
+
+        Lo usa el agente que modela al rival (:mod:`truco.perfil`); los demás lo
+        ignoran. ``mi_jugador`` es el índice propio (el rival es ``1 - mi_jugador``).
         """
         return None

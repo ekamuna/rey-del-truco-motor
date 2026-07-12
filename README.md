@@ -33,12 +33,13 @@ Python 3.11+ · pytest · mypy · (fase ML) PyTorch + Gymnasium · CLI con rich/
 
 ## Estado
 
-🛠️ **En construcción** — M0–M5 ✅ listos: motor completo (envido + truco + partida), CLI jugable y bot de reglas que le gana **~91%** al azar. Próximo: **M6 (Machine Learning — RL por self-play)**.
+🛠️ **En construcción** — M0–M5 ✅ + **PerfilDelRival** ✅. Motor completo (envido + truco + partida), CLI jugable, bot de reglas que le gana **~91%** al azar, y **opponent modeling**: el bot te lee, arma tu fama por usuario y ajusta cuándo te cree. Próximo: **M6 (Machine Learning — RL por self-play)**.
 
 ### Cómo correr
 ```bash
-uv sync            # crea el entorno (Python 3.12 + deps)
-uv run truco       # ¡jugá una ronda contra la máquina!
-uv run pytest      # tests
+uv sync                          # crea el entorno (Python 3.12 + deps)
+uv run truco                     # jugá contra la máquina (usuario "invitado")
+uv run truco --usuario emmanuel  # con tu perfil: el bot te va conociendo
+uv run pytest                    # tests
 uv run ruff check . && uv run mypy   # linter + type-checker
 ```

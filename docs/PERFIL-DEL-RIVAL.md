@@ -53,26 +53,30 @@ Cada observación es un par **(¿hiciste X?, en el contexto C)** → con eso se 
 
 ## 4. Las facetas del perfil  ⬅️ (idea de Emmanuel: "mentiroso" + otras)
 
-El perfil no es un número: son varias **facetas**, cada una una probabilidad estimada. Propuesta:
+El perfil no es un número: son varias **facetas**, cada una una probabilidad estimada. Estas son
+TODAS las facetas que queremos (el "norte"); las marcadas **[v1]** se implementan primero.
 
-1. **Mentiroso / farolero** (tu idea principal)
-   `P(cantás truco | tu mano es débil)`. Cuánto apostás sin tener las cartas.
-   → medida: `veces que cantaste truco con mano débil / veces que tuviste mano débil`.
+1. **[v1] Mentiroso / farolero de truco** (tu idea principal)
+   `P(tu mano era débil | cantaste truco)`. Cuando apostás al truco, ¿qué tan seguido es humo?
+   → alto ⇒ el bot te acepta el truco con manos más flojas.
 
-2. **Mentiroso de envido**
-   `P(cantás envido | tu tanto es bajo, < 27)`. El mismo concepto, en el envido.
+2. **[v1] Mentiroso de envido**
+   `P(tu tanto era bajo, < 27 | cantaste envido)`. El mismo concepto, en el envido.
 
-3. **Miedoso / cauteloso**
-   `P(decís "no quiero" | te cantan truco)`. Si te asustás fácil → el bot te puede farolear más.
+3. **[v1] Miedoso / cauteloso**
+   `P(dijiste "no quiero" | te cantaron truco)`. Si te asustás fácil → el bot te farolea más.
 
-4. **Agresivo / picante**
+4. **[norte] Agresivo / picante**
    `P(escalás | ya hay un canto)` — cuánto subís a retruco / real envido / falta.
 
-5. **Manotazo / pescador**
+5. **[norte] Manotazo / pescador**
    `P(te vas al mazo | mano fea)` — cuán rápido abandonás vs cuánto peleás.
 
-*(Arrancaríamos con 2-3 facetas para v1 — probablemente **mentiroso**, **miedoso** y **mentiroso de
-envido** — y sumamos el resto después.)*
+6. **[norte] Revanchista** — no es una faceta nueva sino un **contexto** (ver §5): el mentiroso
+   medido específicamente cuando venís de perder. Se captura condicionando las facetas por momento.
+
+> **Alcance v1:** facetas 1-3, condicionadas por contexto `{ganando / parejo / perdiendo}`.
+> Las facetas 4-5 y contextos más finos (racha exacta) quedan como el norte, ya documentados acá.
 
 ---
 
