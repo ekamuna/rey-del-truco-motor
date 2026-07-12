@@ -1,53 +1,91 @@
-"""Motor de la ronda: repartir, jugar bazas y resolver quién gana.
+"""Motor de la ronda: máquina de estados con cartas, envido, truco y mazo.
 
-Referencia: ``docs/REGLAMENTO.md`` §3 (Estructura de una ronda).
+Referencia: ``docs/REGLAMENTO.md`` §3-§8.
 
-Funciones puras sobre :class:`EstadoRonda`: ``jugar`` no muta, devuelve un
-estado nuevo. La resolución de la ronda (con toda la tabla de pardas) vive en
-:func:`_resolver_ronda`, aislada para poder cambiarla si hiciera falta.
+Funciones puras sobre :class:`EstadoRonda`: ``aplicar`` no muta, devuelve un
+estado nuevo. La negociación (cantos y respuestas) se modela con una única
+:class:`Negociacion` activa, más un hueco ``truco_suspendido`` para el caso de
+"el envido está primero".
 """
 
 from __future__ import annotations
 
 from dataclasses import replace
 
+from truco.core.acciones import (
+    CANTOS_ENVIDO,
+    CANTOS_TRUCO,
+    CATEGORIA_ENVIDO,
+    CATEGORIA_TRUCO,
+    Accion,
+    TipoAccion,
+    canto,
+    jugar_carta,
+)
 from truco.core.cards import Carta, fuerza_truco
 from truco.core.mazo import repartir
-from truco.core.state import EstadoObservable, EstadoRonda, ResultadoBaza
+from truco.core.scoring import (
+    NIVEL_TRUCO,
+    NO_QUIERO_TRUCO,
+    tanto_envido,
+    valor_envido_no_querido,
+    valor_envido_querido,
+    valor_falta_envido,
+)
+from truco.core.state import (
+    EstadoObservable,
+    EstadoRonda,
+    Negociacion,
+    ResultadoBaza,
+)
+
+#: Valor del truco según el nivel querido (0 = sin cantar → vale 1).
+_VALOR_TRUCO_POR_NIVEL = {0: 1, 1: 2, 2: 3, 3: 4}
+
+
+# --- Construcción ------------------------------------------------------------
 
 
 def iniciar(
     mano0: tuple[Carta, ...],
     mano1: tuple[Carta, ...],
     mano: int = 0,
+    puntos_partida: tuple[int, int] = (0, 0),
+    objetivo: int = 15,
 ) -> EstadoRonda:
-    """Crea una ronda a partir de dos manos ya repartidas.
-
-    ``mano`` es el jugador que arranca (juega primero la baza 1 y gana los
-    empates de la ronda). Útil para tests deterministas.
-    """
+    """Crea una ronda a partir de dos manos ya repartidas."""
+    m0, m1 = tuple(mano0), tuple(mano1)
     return EstadoRonda(
-        manos=(tuple(mano0), tuple(mano1)),
+        puntos_partida=puntos_partida,
+        objetivo=objetivo,
+        manos=(m0, m1),
         mano=mano,
         turno=mano,
         mesa=(None, None),
         bazas=(),
-        ganador=None,
-        terminada=False,
+        tantos=(tanto_envido(m0), tanto_envido(m1)),
     )
 
 
-def nueva_ronda(seed: int | None = None, mano: int = 0) -> EstadoRonda:
+def nueva_ronda(
+    seed: int | None = None,
+    mano: int = 0,
+    puntos_partida: tuple[int, int] = (0, 0),
+    objetivo: int = 15,
+) -> EstadoRonda:
     """Reparte (reproducible por ``seed``) e inicia una ronda."""
     mano0, mano1 = repartir(seed)
-    return iniciar(mano0, mano1, mano=mano)
+    return iniciar(mano0, mano1, mano=mano, puntos_partida=puntos_partida, objetivo=objetivo)
 
 
-def acciones_legales(estado: EstadoRonda) -> tuple[Carta, ...]:
-    """Cartas que el jugador de turno puede jugar (vacío si la ronda terminó)."""
-    if estado.terminada:
-        return ()
-    return estado.manos[estado.turno]
+# --- Consultas ---------------------------------------------------------------
+
+
+def actor(estado: EstadoRonda) -> int:
+    """Quién debe actuar: el que responde si hay canto pendiente, si no el de turno."""
+    if estado.pendiente is not None:
+        return estado.pendiente.a_responder
+    return estado.turno
 
 
 def observacion_de(estado: EstadoRonda, jugador: int) -> EstadoObservable:
@@ -61,66 +99,257 @@ def observacion_de(estado: EstadoRonda, jugador: int) -> EstadoObservable:
         mesa=estado.mesa,
         bazas=estado.bazas,
         cartas_rival=len(estado.manos[rival]),
+        pendiente=estado.pendiente,
+        nivel_truco=estado.nivel_truco,
+        truco_querido=estado.truco_querido,
+        envido_resuelto=estado.envido_resuelto,
+        puntos_partida=estado.puntos_partida,
+        objetivo=estado.objetivo,
         terminada=estado.terminada,
         ganador=estado.ganador,
+        puntos_ronda=estado.puntos_ronda,
+        mi_tanto=estado.tantos[jugador],
     )
 
 
-def jugar(estado: EstadoRonda, carta: Carta) -> EstadoRonda:
-    """Juega ``carta`` por el jugador de turno y devuelve el nuevo estado.
-
-    Levanta error si la ronda terminó o si la carta no está en la mano del
-    jugador de turno.
-    """
+def acciones_legales(estado: EstadoRonda) -> tuple[Accion, ...]:
+    """Acciones que el actor de turno puede tomar."""
     if estado.terminada:
-        raise RuntimeError("La ronda ya terminó; no se pueden jugar cartas.")
+        return ()
+    quien = actor(estado)
+    if estado.pendiente is not None:
+        return _acciones_respuesta(estado, quien)
 
-    j = estado.turno
-    if carta not in estado.manos[j]:
-        raise ValueError(f"El jugador {j} no tiene la carta {carta}.")
+    acciones = [jugar_carta(c) for c in estado.manos[quien]]
+    acciones += [canto(t) for t in _cantos_truco_disponibles(estado, quien)]
+    if _envido_disponible(estado, quien):
+        acciones += [canto(t) for t in CANTOS_ENVIDO]
+    acciones.append(canto(TipoAccion.MAZO))
+    return tuple(acciones)
 
-    # Sacar la carta de la mano y ponerla en la mesa.
+
+def _acciones_respuesta(estado: EstadoRonda, quien: int) -> tuple[Accion, ...]:
+    neg = estado.pendiente
+    assert neg is not None
+    acciones = [canto(TipoAccion.QUIERO), canto(TipoAccion.NO_QUIERO)]
+    acciones += [canto(t) for t in _subidas(neg)]
+    # "El envido está primero": ante un truco pendiente, en la primera baza,
+    # el que debe responder puede cantar envido en lugar de contestar.
+    if neg.categoria == CATEGORIA_TRUCO and _envido_disponible(estado, quien):
+        acciones += [canto(t) for t in CANTOS_ENVIDO]
+    return tuple(acciones)
+
+
+def _envido_disponible(estado: EstadoRonda, jugador: int) -> bool:
+    """El envido se puede cantar en la primera baza, antes de que ``jugador``
+    haya jugado su carta y sin que el truco esté querido."""
+    return (
+        not estado.envido_resuelto
+        and not estado.truco_querido
+        and len(estado.bazas) == 0
+        and estado.mesa[jugador] is None
+    )
+
+
+def _cantos_truco_disponibles(estado: EstadoRonda, quien: int) -> list[TipoAccion]:
+    if estado.nivel_truco == 0:
+        return [TipoAccion.TRUCO]
+    if estado.truco_querido and estado.nivel_truco < 3 and estado.puede_subir_truco == quien:
+        return [CANTOS_TRUCO[estado.nivel_truco]]  # índice = nivel actual → siguiente canto
+    return []
+
+
+def _subidas(neg: Negociacion) -> list[TipoAccion]:
+    if neg.categoria == CATEGORIA_ENVIDO:
+        return _subidas_envido(neg.cantos)
+    return _subidas_truco(neg.ultimo)
+
+
+def _subidas_envido(cantos: tuple[TipoAccion, ...]) -> list[TipoAccion]:
+    ultimo = cantos[-1]
+    if ultimo is TipoAccion.ENVIDO:
+        res = [TipoAccion.REAL_ENVIDO, TipoAccion.FALTA_ENVIDO]
+        if cantos.count(TipoAccion.ENVIDO) < 2:
+            res.insert(0, TipoAccion.ENVIDO)  # envido-envido
+        return res
+    if ultimo is TipoAccion.REAL_ENVIDO:
+        return [TipoAccion.FALTA_ENVIDO]
+    return []  # falta envido: no se sube más
+
+
+def _subidas_truco(ultimo: TipoAccion) -> list[TipoAccion]:
+    idx = CANTOS_TRUCO.index(ultimo)
+    return [CANTOS_TRUCO[idx + 1]] if idx + 1 < len(CANTOS_TRUCO) else []
+
+
+# --- Transición --------------------------------------------------------------
+
+
+def aplicar(estado: EstadoRonda, accion: Accion) -> EstadoRonda:
+    """Aplica una acción legal y devuelve el nuevo estado."""
+    if estado.terminada:
+        raise RuntimeError("La ronda ya terminó.")
+    if accion not in acciones_legales(estado):
+        raise ValueError(f"Acción ilegal: {accion}")
+
+    quien = actor(estado)
+    tipo = accion.tipo
+    if tipo is TipoAccion.JUGAR:
+        assert accion.carta is not None
+        return _jugar_carta(estado, accion.carta, quien)
+    if tipo in CANTOS_ENVIDO:
+        return _cantar_envido(estado, tipo, quien)
+    if tipo in CANTOS_TRUCO:
+        return _cantar_truco(estado, tipo, quien)
+    if tipo is TipoAccion.QUIERO:
+        return _responder_quiero(estado, quien)
+    if tipo is TipoAccion.NO_QUIERO:
+        return _responder_no_quiero(estado, quien)
+    return _irse_al_mazo(estado, quien)
+
+
+def _jugar_carta(estado: EstadoRonda, carta: Carta, quien: int) -> EstadoRonda:
     manos = list(estado.manos)
-    manos[j] = tuple(c for c in manos[j] if c != carta)
+    manos[quien] = tuple(c for c in manos[quien] if c != carta)
     mesa: list[Carta | None] = list(estado.mesa)
-    mesa[j] = carta
+    mesa[quien] = carta
 
-    rival = 1 - j
+    rival = 1 - quien
     if mesa[rival] is None:
-        # Falta que el rival juegue su carta en esta baza.
         return replace(estado, manos=(manos[0], manos[1]), mesa=(mesa[0], mesa[1]), turno=rival)
 
-    # Ambos jugaron: resolver la baza.
     c0, c1 = mesa[0], mesa[1]
-    assert c0 is not None and c1 is not None  # garantizado por el flujo
+    assert c0 is not None and c1 is not None
     ganador_baza = _ganador_baza(c0, c1)
     bazas = estado.bazas + (ResultadoBaza(cartas=(c0, c1), ganador=ganador_baza),)
 
     ganador_ronda = _resolver_ronda(bazas, estado.mano)
     if ganador_ronda is not None:
+        valor = _VALOR_TRUCO_POR_NIVEL[estado.nivel_truco]
         return replace(
             estado,
             manos=(manos[0], manos[1]),
             mesa=(None, None),
             bazas=bazas,
-            ganador=ganador_ronda,
+            puntos_ronda=_sumar(estado.puntos_ronda, ganador_ronda, valor),
             terminada=True,
+            ganador=ganador_ronda,
+            motivo="bazas",
             turno=ganador_ronda,
         )
 
-    # La ronda sigue: arranca la próxima baza quien ganó ésta; si fue parda, el mano.
     siguiente = estado.mano if ganador_baza is None else ganador_baza
     return replace(
-        estado,
-        manos=(manos[0], manos[1]),
-        mesa=(None, None),
-        bazas=bazas,
-        turno=siguiente,
+        estado, manos=(manos[0], manos[1]), mesa=(None, None), bazas=bazas, turno=siguiente
     )
 
 
+def _cantar_envido(estado: EstadoRonda, tipo: TipoAccion, quien: int) -> EstadoRonda:
+    neg = estado.pendiente
+    nueva = Negociacion(
+        categoria=CATEGORIA_ENVIDO,
+        cantos=(neg.cantos + (tipo,)) if (neg and neg.categoria == CATEGORIA_ENVIDO) else (tipo,),
+        a_responder=1 - quien,
+    )
+    if neg is not None and neg.categoria == CATEGORIA_TRUCO:
+        # Envido está primero: suspender el truco pendiente.
+        return replace(estado, pendiente=nueva, truco_suspendido=neg)
+    return replace(estado, pendiente=nueva)
+
+
+def _cantar_truco(estado: EstadoRonda, tipo: TipoAccion, quien: int) -> EstadoRonda:
+    neg = estado.pendiente
+    cantos = (neg.cantos + (tipo,)) if neg is not None else (tipo,)
+    nueva = Negociacion(categoria=CATEGORIA_TRUCO, cantos=cantos, a_responder=1 - quien)
+    return replace(estado, pendiente=nueva)
+
+
+def _responder_quiero(estado: EstadoRonda, quien: int) -> EstadoRonda:
+    neg = estado.pendiente
+    assert neg is not None
+    if neg.categoria == CATEGORIA_ENVIDO:
+        return _resolver_envido_querido(estado, neg)
+    nivel = NIVEL_TRUCO[neg.ultimo]
+    return replace(
+        estado, pendiente=None, nivel_truco=nivel, truco_querido=True, puede_subir_truco=quien
+    )
+
+
+def _responder_no_quiero(estado: EstadoRonda, quien: int) -> EstadoRonda:
+    neg = estado.pendiente
+    assert neg is not None
+    if neg.categoria == CATEGORIA_ENVIDO:
+        valor = valor_envido_no_querido(neg.cantos)
+        estado2 = replace(
+            estado,
+            pendiente=None,
+            envido_resuelto=True,
+            envido_ganador=neg.cantor,
+            puntos_envido=valor,
+            puntos_ronda=_sumar(estado.puntos_ronda, neg.cantor, valor),
+        )
+        return _restaurar_truco(estado2)
+
+    valor = NO_QUIERO_TRUCO[neg.ultimo]
+    return replace(
+        estado,
+        pendiente=None,
+        puntos_ronda=_sumar(estado.puntos_ronda, neg.cantor, valor),
+        terminada=True,
+        ganador=neg.cantor,
+        motivo="no_quiero_truco",
+    )
+
+
+def _irse_al_mazo(estado: EstadoRonda, quien: int) -> EstadoRonda:
+    rival = 1 - quien
+    valor = _VALOR_TRUCO_POR_NIVEL[estado.nivel_truco]
+    return replace(
+        estado,
+        puntos_ronda=_sumar(estado.puntos_ronda, rival, valor),
+        terminada=True,
+        ganador=rival,
+        motivo="mazo",
+    )
+
+
+def _resolver_envido_querido(estado: EstadoRonda, neg: Negociacion) -> EstadoRonda:
+    valor_falta = valor_falta_envido(estado.puntos_partida, estado.objetivo)
+    valor = valor_envido_querido(neg.cantos, valor_falta)
+    t0, t1 = estado.tantos
+    if t0 > t1:
+        ganador = 0
+    elif t1 > t0:
+        ganador = 1
+    else:
+        ganador = estado.mano  # empate de tanto → gana el mano
+    estado2 = replace(
+        estado,
+        pendiente=None,
+        envido_resuelto=True,
+        envido_ganador=ganador,
+        puntos_envido=valor,
+        puntos_ronda=_sumar(estado.puntos_ronda, ganador, valor),
+    )
+    return _restaurar_truco(estado2)
+
+
+def _restaurar_truco(estado: EstadoRonda) -> EstadoRonda:
+    if estado.truco_suspendido is not None:
+        return replace(estado, pendiente=estado.truco_suspendido, truco_suspendido=None)
+    return estado
+
+
+# --- Auxiliares --------------------------------------------------------------
+
+
+def _sumar(puntos: tuple[int, int], jugador: int, cantidad: int) -> tuple[int, int]:
+    if jugador == 0:
+        return (puntos[0] + cantidad, puntos[1])
+    return (puntos[0], puntos[1] + cantidad)
+
+
 def _ganador_baza(c0: Carta, c1: Carta) -> int | None:
-    """Quién gana una baza: 0, 1, o None si es parda (mismo rango)."""
     f0, f1 = fuerza_truco(c0), fuerza_truco(c1)
     if f0 > f1:
         return 0
@@ -130,22 +359,12 @@ def _ganador_baza(c0: Carta, c1: Carta) -> int | None:
 
 
 def _resolver_ronda(bazas: tuple[ResultadoBaza, ...], mano: int) -> int | None:
-    """Ganador de la ronda según las bazas jugadas, o None si aún no se define.
-
-    Implementa la tabla completa de §3 (incluidas las pardas):
-
-    * Gana 2 bazas → ese jugador.
-    * Gana una y emparda otra → ese jugador.
-    * 1-1 → decide la 3ª; si la 3ª es parda, gana **quien ganó la 1ª baza**.
-    * Las 3 pardas → gana **el mano**.
-    """
+    """Ganador de la ronda por las bazas, o None si aún no se define (§3)."""
     ganadores = [b.ganador for b in bazas]
     if len(ganadores) < 2:
         return None
 
     a, b = ganadores[0], ganadores[1]
-
-    # Decisiones al cabo de dos bazas.
     if a is not None and a == b:
         return a  # 2-0
     if a is not None and b is None:
@@ -153,13 +372,10 @@ def _resolver_ronda(bazas: tuple[ResultadoBaza, ...], mano: int) -> int | None:
     if a is None and b is not None:
         return b  # emparda la 1ª, gana la 2ª
 
-    # Queda 1-1 (a, b distintos) o (parda, parda): se define en la 3ª baza.
     if len(ganadores) < 3:
         return None
 
     c = ganadores[2]
     if a is not None and b is not None:
-        # Fue 1-1: gana la 3ª; si la 3ª es parda, gana quien ganó la 1ª.
-        return c if c is not None else a
-    # Fueron dos pardas: gana la 3ª; si también es parda, gana el mano.
-    return c if c is not None else mano
+        return c if c is not None else a  # 1-1: la 3ª; si es parda, gana quien ganó la 1ª
+    return c if c is not None else mano  # dos pardas: la 3ª; si es parda, gana el mano

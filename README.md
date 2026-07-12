@@ -33,7 +33,7 @@ Python 3.11+ · pytest · mypy · (fase ML) PyTorch + Gymnasium · CLI con rich/
 
 ## Estado
 
-🛠️ **En construcción** — M0–M3 ✅ listos (motor + CLI jugable). Próximo: **M4 (truco cantado + bot de reglas)**.
+🛠️ **En construcción** — M0–M5 ✅ listos: motor completo (envido + truco + partida), CLI jugable y bot de reglas que le gana **~91%** al azar. Próximo: **M6 (Machine Learning — RL por self-play)**.
 
 ### Cómo correr
 ```bash

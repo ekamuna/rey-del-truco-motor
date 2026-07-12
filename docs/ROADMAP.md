@@ -42,7 +42,7 @@ setup  cartas  motor   jugar   reglas  envido   ML/RL   web/CFR
 - 🧠 Cómo el mismo loop sirve para cualquier agente; el humano es "un agente más".
 - ✅ Un humano juega una ronda completa contra el `RandomAgent` por CLI. (Todavía sin envido.)
 
-### M4 — Truco + `RuleBasedAgent` v1
+### M4 — Truco + `RuleBasedAgent` v1  ✅ HECHO
 - 🎯 Un rival que **decide con criterio** en el truco.
 - 🛠️ Cantos **Truco / Retruco / Vale Cuatro** con quiero/no-quiero en el engine. `agents/rule_based.py` con heurísticas: clasificar cartas (matas/altas/medias/chicas), cuándo cantar, qué carta guardar, cuándo no querer / ir al mazo. Umbrales parametrizables.
 - 🧠 Traducir **estrategia humana a código**; tener una **línea base** medible.
@@ -52,7 +52,7 @@ setup  cartas  motor   jugar   reglas  envido   ML/RL   web/CFR
 
 ## 🃏 Fase 2 — El juego completo
 
-### M5 — Envido, apuestas completas y partida
+### M5 — Envido, apuestas completas y partida  ✅ HECHO
 - 🎯 Truco "de verdad", partida completa con marcador.
 - 🛠️ `core/scoring.py`: cálculo del tanto (20 + 2 cartas del palo), Envido/Real/Falta Envido, regla **"el envido va primero"**. Partida acumulativa a 15/30. `RuleBasedAgent` ampliado con heurísticas de envido y **faroleo** (semi-farol, frecuencia ~20-35%).
 - 🧠 Apuestas encadenadas, interacción envido↔truco, por qué el bluff es parte necesaria del juego.

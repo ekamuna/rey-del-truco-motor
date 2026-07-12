@@ -9,33 +9,29 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from truco.agents.base import Agent
-from truco.core.cards import Carta
-from truco.core.engine import acciones_legales, jugar, observacion_de
+from truco.core.acciones import Accion
+from truco.core.engine import acciones_legales, actor, aplicar, observacion_de
 from truco.core.state import EstadoRonda
 
-#: Callback opcional que se invoca tras cada jugada (para que la UI la muestre).
-AlJugar = Callable[[EstadoRonda, int, Carta], None]
+#: Callback opcional que se invoca tras cada acción (para que la UI la muestre).
+AlActuar = Callable[[EstadoRonda, int, Accion], None]
 
 
 def jugar_ronda(
     estado: EstadoRonda,
     agentes: tuple[Agent, Agent],
-    al_jugar: AlJugar | None = None,
+    al_actuar: AlActuar | None = None,
 ) -> EstadoRonda:
-    """Juega una ronda hasta el final y devuelve el estado terminado.
-
-    En cada turno le pide al agente de turno una acción, validando que sea
-    legal (un agente que devuelve una carta ilegal es un error de programación).
-    """
+    """Juega una ronda hasta el final y devuelve el estado terminado."""
     while not estado.terminada:
-        jugador = estado.turno
-        obs = observacion_de(estado, jugador)
+        quien = actor(estado)
+        obs = observacion_de(estado, quien)
         acciones = acciones_legales(estado)
-        carta = agentes[jugador].actuar(obs, acciones)
-        if carta not in acciones:
-            raise ValueError(f"El agente {jugador} eligió una acción ilegal: {carta}")
-        estado = jugar(estado, carta)
-        if al_jugar is not None:
-            al_jugar(estado, jugador, carta)
+        accion = agentes[quien].actuar(obs, acciones)
+        if accion not in acciones:
+            raise ValueError(f"El agente {quien} eligió una acción ilegal: {accion}")
+        estado = aplicar(estado, accion)
+        if al_actuar is not None:
+            al_actuar(estado, quien, accion)
 
     return estado

@@ -175,3 +175,20 @@ _(pendiente)_
 
 ### 10.4 Lógicas de decisión del experto (para el bot y el PerfilDelRival)
 _(pendiente)_
+
+---
+
+## §11. Qué cubre la implementación v1 (M4/M5) y simplificaciones
+
+**Implementado y testeado** (motor `truco.core`): jerarquía y pardas, reparto por semilla,
+envido / real envido / falta envido (cadena, quiero/no quiero, empate al mano, falta simple),
+truco / retruco / vale cuatro (quiero/no quiero), "el envido está primero", irse al mazo,
+y partida acumulativa a 15/30 con alternancia de mano.
+
+**Simplificaciones conscientes de la v1** (a revisar/ampliar más adelante):
+- El **envido-envido** (responder "envido" a un "envido") está permitido hasta 2 veces; el resto
+  de la cadena es envido → real → falta.
+- El "envido primero" se modela con **una** suspensión de truco (suficiente para 1v1); no hay
+  anidamientos más profundos.
+- El **bot de reglas** todavía no aprovecha el "envido primero" ni farolea (eso es §10, más adelante).
+- Sin **flor** (flag futuro, §9).

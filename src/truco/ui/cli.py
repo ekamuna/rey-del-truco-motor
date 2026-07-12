@@ -1,4 +1,4 @@
-"""CLI: jugá una ronda humano (jugador 0) contra la máquina (jugador 1).
+"""CLI: jugá una PARTIDA completa (humano vs bot de reglas).
 
 Ejecutar con::
 
@@ -6,41 +6,52 @@ Ejecutar con::
     # o
     uv run python -m truco.ui.cli
 
-Por ahora la máquina juega al azar (M3) y no hay envido ni truco cantados
-(eso llega en M4/M5). Es una ronda suelta, para probar el flujo.
+Ya con envido, truco y marcador de partida (M4/M5). El humano es el jugador 0.
 """
 
 from __future__ import annotations
 
-from truco.agents.aleatorio import AgenteAleatorio
-from truco.core.cards import Carta
+import random
+
+from truco.agents.reglas import AgenteReglas
+from truco.core.acciones import Accion, TipoAccion
 from truco.core.engine import nueva_ronda
 from truco.core.state import EstadoRonda
 from truco.game_loop import jugar_ronda
 from truco.ui.humano import AgenteHumano
-from truco.ui.render import formato_baza, formato_jugada
+from truco.ui.render import formato_accion, formato_baza
+
+OBJETIVO = 15
 
 
-def _mostrar_jugada(estado: EstadoRonda, jugador: int, carta: Carta) -> None:
-    print(formato_jugada(jugador, carta))
-    # Si la baza se cerró (la mesa quedó vacía), mostrar su resultado.
-    if estado.mesa == (None, None) and estado.bazas:
+def _mostrar(estado: EstadoRonda, jugador: int, accion: Accion) -> None:
+    print(formato_accion(jugador, accion))
+    if accion.tipo is TipoAccion.JUGAR and estado.mesa == (None, None) and estado.bazas:
         print(formato_baza(estado.bazas[-1]))
 
 
 def main(seed: int | None = None) -> None:
     humano = AgenteHumano()
-    maquina = AgenteAleatorio(seed=seed)
-    estado = nueva_ronda(seed=seed, mano=0)
+    maquina = AgenteReglas()
+    rng = random.Random(seed)
+    puntos = (0, 0)
+    mano = 0
 
-    print("=== Rey del Truco — ronda de prueba ===")
-    estado = jugar_ronda(estado, (humano, maquina), al_jugar=_mostrar_jugada)
+    print(f"=== Rey del Truco — partida a {OBJETIVO} (vos sos el jugador 0) ===")
+    while max(puntos) < OBJETIVO:
+        estado = nueva_ronda(
+            seed=rng.randrange(2**31), mano=mano, puntos_partida=puntos, objetivo=OBJETIVO
+        )
+        print(f"\n--- Nueva ronda (mano: jugador {mano}) ---")
+        estado = jugar_ronda(estado, (humano, maquina), al_actuar=_mostrar)
+        puntos = (puntos[0] + estado.puntos_ronda[0], puntos[1] + estado.puntos_ronda[1])
+        print(
+            f"Puntos de la ronda: vos +{estado.puntos_ronda[0]}, máquina +{estado.puntos_ronda[1]}"
+        )
+        print(f"Marcador: vos {puntos[0]} - {puntos[1]} máquina")
+        mano = 1 - mano
 
-    print()
-    if estado.ganador == 0:
-        print("🏆 ¡Ganaste la ronda!")
-    else:
-        print("🤖 Ganó la máquina.")
+    print("\n" + ("🏆 ¡Ganaste la partida!" if puntos[0] > puntos[1] else "🤖 Ganó la máquina."))
 
 
 if __name__ == "__main__":
