@@ -33,9 +33,18 @@ Python 3.11+ · pytest · mypy · (fase ML) PyTorch + Gymnasium · CLI con rich/
 
 ## Estado
 
-🛠️ **En construcción** — recorrido completo *de `if/else` a deep learning*: motor testeado → bot de reglas → **opponent modeling** (te lee) → **faroleo** (te miente) → **RL Q-tabular** (aprende las apuestas) → **red neuronal / deep RL** (aprende TODO, incluida la carta). Todos se enchufan a la misma interfaz `Agent`.
+🛠️ **En construcción** — recorrido completo *de `if/else` a la IA de información imperfecta*: motor testeado → bot de reglas → **opponent modeling** (te lee) → **faroleo** (te miente) → **RL Q-tabular** → **red neuronal / deep RL** → **PIMC** (infiere tus cartas ocultas). Todos se enchufan a la misma interfaz `Agent`.
 
-**Resultado honesto del panel** (winrate vs estilos agresivo/mentiroso/conservador): el **bot de reglas sigue siendo el mejor** (~61% prom); la **red neuronal** quedó a la par del Q-tabular (~56%) y es la mejor contra rivales conservadores, pero el deep RL ingenuo **no supera** a las reglas escritas a mano. *(Lección real: sofisticación ≠ superioridad; para info imperfecta el techo es CFR, no una red pelada.)*
+**El campeón del panel** (winrate prom vs azar + estilos agresivo/mentiroso/conservador):
+
+| Agente | Prom | vs Reglas |
+|---|---|---|
+| **PIMC (infiere)** 🏆 | **~66%** | 60% |
+| Bot de reglas | ~63% | — |
+| Red (deep RL) | ~57% | 40% |
+| Q tabular | ~57% | 39% |
+
+**La lección del proyecto:** en truco **no ganás entrenando más, ganás adivinando mejor lo que no ves.** La red neuronal (770k partidas, millones de pesos) quedó *por debajo* de 50 líneas de `if/else`; el PIMC, que **razona sobre las cartas ocultas** (sin entrenar), es el mejor. El techo real de la información imperfecta es CFR/inferencia, no una red pelada. *(Un oráculo que ve las cartas gana ~90% → esa brecha 66%→90% es el valor de la información oculta.)*
 
 ### Cómo correr
 ```bash
@@ -44,6 +53,7 @@ uv run truco                     # jugá vs el bot de reglas (con perfil + farol
 uv run truco --usuario emmanuel  # con tu perfil: el bot te va conociendo
 uv run truco --rival q           # vs el agente Q tabular (RL)
 uv run truco --rival red         # vs la red neuronal (deep RL)
+uv run truco --rival pimc        # vs el PIMC (te lee / infiere tus cartas) 🏆
 uv run truco-panel               # examen: ¿quién le gana a quién? (tabla de estilos)
 uv run truco-entrenar            # entrená el Q tabular
 uv run truco-entrenar-red        # entrená la red neuronal

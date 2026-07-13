@@ -66,6 +66,7 @@ class EstadoRonda:
     # --- Envido ---
     tantos: tuple[int, int] = (0, 0)  # tanto de cada jugador (fijado al repartir)
     envido_resuelto: bool = False
+    envido_con_quiero: bool = False  # si se resolvió con "quiero" → los tantos son públicos
     envido_ganador: int | None = None
     puntos_envido: int = 0
 
@@ -107,6 +108,8 @@ class EstadoObservable:
 
     # Campos con default al final (por orden de dataclass).
     mi_tanto: int = field(default=0)
+    #: Tanto que cantó el rival, público solo si el envido se resolvió con "quiero".
+    tanto_rival: int | None = None
 
     @property
     def soy_mano(self) -> bool:

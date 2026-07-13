@@ -18,6 +18,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from truco.agents.base import Agent
+from truco.agents.pimc import AgentePIMC
 from truco.agents.reglas import AgenteReglas, ConfigReglas
 from truco.core.acciones import Accion
 from truco.core.engine import nueva_ronda
@@ -95,7 +96,10 @@ def _crear_maquina(
     modelo: str,
     escribir: Callable[[str], None],
 ) -> Agent:
-    """Elige el oponente: el bot de reglas, el Q tabular o la red neuronal."""
+    """Elige el oponente: reglas, Q tabular, red neuronal o PIMC (inferencia)."""
+    if rival == "pimc":
+        escribir("Rival: PIMC — te lee (infiere tus cartas ocultas). 🔮")
+        return AgentePIMC()
     if rival == "red":
         ruta = Path("modelos/red.pt")
         if ruta.exists():
@@ -140,8 +144,8 @@ def cli() -> None:
     parser.add_argument(
         "--rival",
         default="reglas",
-        choices=["reglas", "q", "red"],
-        help="reglas (default), q (Q tabular) o red (red neuronal)",
+        choices=["reglas", "q", "red", "pimc"],
+        help="reglas (default), q (Q tabular), red (red neuronal) o pimc (inferencia)",
     )
     parser.add_argument("--modelo", default="modelos/qtable.json", help="ruta del modelo (rival q)")
     args = parser.parse_args()

@@ -109,7 +109,18 @@ def observacion_de(estado: EstadoRonda, jugador: int) -> EstadoObservable:
         ganador=estado.ganador,
         puntos_ronda=estado.puntos_ronda,
         mi_tanto=estado.tantos[jugador],
+        tanto_rival=_tanto_rival_publico(estado, rival),
     )
+
+
+def _tanto_rival_publico(estado: EstadoRonda, rival: int) -> int | None:
+    """El tanto del rival es público si cantó el número: es mano (canta primero)
+    o ganó el envido (canta para superar). Si perdió siendo pie dijo 'son buenas'."""
+    if not estado.envido_con_quiero:
+        return None
+    if estado.mano == rival or estado.envido_ganador == rival:
+        return estado.tantos[rival]
+    return None
 
 
 def acciones_legales(estado: EstadoRonda) -> tuple[Accion, ...]:
@@ -327,6 +338,7 @@ def _resolver_envido_querido(estado: EstadoRonda, neg: Negociacion) -> EstadoRon
         estado,
         pendiente=None,
         envido_resuelto=True,
+        envido_con_quiero=True,
         envido_ganador=ganador,
         puntos_envido=valor,
         puntos_ronda=_sumar(estado.puntos_ronda, ganador, valor),

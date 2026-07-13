@@ -10,6 +10,7 @@ from pathlib import Path
 
 from truco.agents.aleatorio import AgenteAleatorio
 from truco.agents.estilos import agresivo, conservador, mentiroso
+from truco.agents.pimc import AgentePIMC
 from truco.agents.reglas import AgenteReglas
 from truco.evaluacion import FabricaAgente, enfrentar
 from truco.rl.agente_q import AgenteQ
@@ -38,6 +39,7 @@ def _contendientes() -> dict[str, FabricaAgente]:
     if _RUTA_RED.exists():
         red = AgenteRed.cargar(_RUTA_RED).red
         ags["Red (deep RL)"] = lambda: AgenteRed(red)
+    ags["PIMC (infiere)"] = lambda: AgentePIMC()
     return ags
 
 
