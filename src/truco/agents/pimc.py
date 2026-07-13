@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import itertools
 import random
+from math import comb
 
 from truco.agents._senales import rival_paso_envido
 from truco.agents.base import Agent
@@ -38,6 +39,10 @@ _TODAS = baraja()
 # Umbrales de decisión (probabilidad de ganar estimada por muestreo).
 _CANTAR = 0.55  # cantar solo con ventaja
 _MAX_RECHAZOS = 25  # intentos para muestrear una mano que cumpla la restricción
+
+# Truco = se gana con 2 bazas (teoría del experto, docs/LOGICA-TRUCO.md).
+_FUERTE = 8  # fuerza de una carta "ganadora" (2, 3 o brava): gana la mayoría de las bazas
+_P_ESCALAR = 0.10  # sólo escalo (retruco/vale4) si P(el rival me supere) < esto (>90% seguro)
 
 # Efecto de SELECCIÓN del envido: si el rival CANTA envido, es porque tiene puntos.
 # Al responder, sólo imaginamos manos del rival con tanto >= este piso (escalado
@@ -97,7 +102,11 @@ class AgentePIMC(Agent):
             return Accion(TipoAccion.ENVIDO)  # Regla 1: el mano pasó → está flojo, le cobro
         if TipoAccion.ENVIDO in tipos and self._prob_gana_envido(obs) >= self.umbral_cantar:
             return Accion(TipoAccion.ENVIDO)
-        if TipoAccion.TRUCO in tipos and self._prob_gana_cartas(obs) >= self.umbral_cantar:
+        if (
+            TipoAccion.TRUCO in tipos
+            and self._estructura_para_cantar_truco(obs)
+            and self._prob_gana_cartas(obs) >= self.umbral_cantar
+        ):
             return Accion(TipoAccion.TRUCO)
 
         cartas = [a.carta for a in acciones if a.tipo is TipoAccion.JUGAR and a.carta is not None]
@@ -174,14 +183,53 @@ class AgentePIMC(Agent):
     def _escalar_o_querer_truco(
         self, obs: EstadoObservable, tipos: set[TipoAccion], prob: float
     ) -> Accion:
-        """Ya decidí querer el truco; con una mano casi ganada (prob muy alta) ESCALO
-        a retruco/vale cuatro para inflar el pozo en vez de flat-call (valor puro que la
-        autopsia marcó: nunca subía con monstruos). Umbral alto para no escalar faroles."""
-        if prob >= 0.80:
+        """Ya decidí querer el truco; ESCALO a retruco/vale4 SÓLO con la regla del experto
+        (docs/LOGICA-TRUCO.md): >90% seguro = a lo sumo 1 carta sin ver le gana a mi mejor
+        carta (conteo hipergeométrico exacto), y con estructura de 2 bazas (voy adelante/
+        parejo). Antes era un ``prob>=0.80`` que el slow-play del rival inflaba → farol de
+        vale4 con un 3 (que 4 cartas superan). Si no, flat-call (quiero)."""
+        g, p = self._bazas_ganadas(obs)
+        mejor = max(obs.mi_mano, key=fuerza_truco) if obs.mi_mano else None
+        seguro = mejor is not None and self._p_rival_supera(obs, mejor) < _P_ESCALAR
+        if prob >= 0.80 and seguro and g >= p and self._estructura_para_cantar_truco(obs):
             for subir in (TipoAccion.VALE_CUATRO, TipoAccion.RETRUCO):
                 if subir in tipos:
                     return Accion(subir)
         return Accion(TipoAccion.QUIERO)
+
+    def _bazas_ganadas(self, obs: EstadoObservable) -> tuple[int, int]:
+        """(bazas que gané, bazas que perdí) hasta ahora; las pardas no cuentan."""
+        yo = obs.jugador
+        g = sum(1 for b in obs.bazas if b.ganador == yo)
+        p = sum(1 for b in obs.bazas if b.ganador is not None and b.ganador != yo)
+        return g, p
+
+    def _p_rival_supera(self, obs: EstadoObservable, mi_carta: Carta) -> float:
+        """P(el rival tenga ≥1 carta que le gane a ``mi_carta``), por conteo exacto
+        (hipergeométrica) sobre las cartas sin ver y cuántas le quedan al rival. La base
+        del vale4: al arranque sólo macho/hembra dan <10%; en la baza decisiva casi
+        cualquier brava. Ver docs/LOGICA-TRUCO.md, tabla de equity."""
+        pozo = _pozo(obs)
+        n = len(pozo)
+        r = min(obs.cartas_rival, n)
+        k = sum(1 for c in pozo if fuerza_truco(c) > fuerza_truco(mi_carta))
+        if r == 0 or k == 0:
+            return 0.0
+        if n - k < r:
+            return 1.0
+        return 1.0 - comb(n - k, r) / comb(n, r)
+
+    def _estructura_para_cantar_truco(self, obs: EstadoObservable) -> bool:
+        """El truco se gana con 2 bazas → sólo lo canto/escalo con estructura para ganarlas:
+        ya gané 2, o gané ≥ las que perdí y me queda una carta FUERTE, o (baza 1) tengo ≥2
+        cartas fuertes. Nunca con '1 carta + basura' (el farol que sangraba puntos)."""
+        g, p = self._bazas_ganadas(obs)
+        if g >= 2:
+            return True
+        fuertes = sum(1 for c in obs.mi_mano if fuerza_truco(c) >= _FUERTE)
+        if len(obs.bazas) == 0:  # baza 1: exijo DOS ganadores
+            return fuertes >= 2
+        return g >= p and fuertes >= 1  # gano/parejo en bazas + una carta real
 
     def _umbral_querer_truco_ev(self, obs: EstadoObservable) -> float:
         """Break-even EV de aceptar el truco pendiente: aceptar (ganar/perder V) vs irse

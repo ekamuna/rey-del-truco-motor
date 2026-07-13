@@ -201,17 +201,51 @@ def test_revira_el_envido_con_tanto_muy_fuerte() -> None:
     assert escala(27) is TipoAccion.QUIERO
 
 
-def test_escala_truco_con_mano_casi_ganada() -> None:
-    # Al querer un truco con prob muy alta, escala a retruco (valor); si no, quiere.
+def _obs_gane_primera(mi_mano: tuple[Carta, ...], cartas_rival: int) -> EstadoObservable:
+    """Soy pie (jugador 1) y GANÉ la baza 1; me quedan ``mi_mano`` y el rival ``cartas_rival``.
+    Estado típico para decidir si escalo un truco."""
+    baza1 = ResultadoBaza(cartas=(Carta(4, Palo.BASTO), Carta(12, Palo.ORO)), ganador=1)
+    return EstadoObservable(
+        jugador=1, mi_mano=mi_mano, mano=0, turno=1, mesa=(None, None), bazas=(baza1,),
+        cartas_rival=cartas_rival, pendiente=None, nivel_truco=1, truco_querido=True,
+        envido_resuelto=True, puntos_partida=(0, 0), objetivo=15, terminada=False,
+        ganador=None, puntos_ronda=(0, 0), mi_tanto=20, tanto_rival=None,
+    )
+
+
+def test_escala_truco_solo_con_carta_casi_imbatible() -> None:
+    # Teoría del experto: escalar (vale4) SÓLO con >90% seguro = a lo sumo 1 carta sin ver
+    # me gana, y con estructura de 2 bazas. Con el MACHO (nada lo gana) escala; con basura
+    # (un 4, que todo supera) NO escala aunque la prob sea alta (mata el farol de vale4).
     ag = AgentePIMC()
-    obs = _obs_respondiendo_envido((Carta(4, Palo.ORO),), 20)
-    neg = Negociacion(categoria="truco", cantos=(TipoAccion.TRUCO,), a_responder=1)
-    obs = replace(obs, pendiente=neg)
     subible = {TipoAccion.QUIERO, TipoAccion.NO_QUIERO, TipoAccion.RETRUCO}
-    assert ag._escalar_o_querer_truco(obs, subible, 0.90).tipo is TipoAccion.RETRUCO
-    assert ag._escalar_o_querer_truco(obs, subible, 0.50).tipo is TipoAccion.QUIERO
-    # sin subida disponible, simplemente quiere
-    assert ag._escalar_o_querer_truco(obs, {TipoAccion.QUIERO}, 0.90).tipo is TipoAccion.QUIERO
+    con_macho = _obs_gane_primera((Carta(1, Palo.ESPADA), Carta(5, Palo.ORO)), cartas_rival=2)
+    assert ag._escalar_o_querer_truco(con_macho, subible, 0.90).tipo is TipoAccion.RETRUCO
+    con_basura = _obs_gane_primera((Carta(4, Palo.ORO), Carta(5, Palo.ORO)), cartas_rival=2)
+    assert ag._escalar_o_querer_truco(con_basura, subible, 0.90).tipo is TipoAccion.QUIERO
+    # con prob baja tampoco escala (aun con el macho); y sin subida disponible, quiere
+    assert ag._escalar_o_querer_truco(con_macho, subible, 0.50).tipo is TipoAccion.QUIERO
+    assert ag._escalar_o_querer_truco(con_macho, {TipoAccion.QUIERO}, 0.90).tipo is TipoAccion.QUIERO
+
+
+def test_estructura_para_cantar_exige_dos_bazas() -> None:
+    # El truco se gana con 2 bazas: en baza 1 exijo 2 cartas fuertes; 1 carta+basura NO.
+    ag = AgentePIMC()
+    dos_fuertes = _obs_liderando((Carta(3, Palo.ESPADA), Carta(2, Palo.COPA), Carta(5, Palo.ORO)))
+    assert ag._estructura_para_cantar_truco(dos_fuertes)  # 3(f9)+2(f8) = dos ganadores
+    una_fuerte = _obs_liderando((Carta(7, Palo.ORO), Carta(6, Palo.COPA), Carta(12, Palo.COPA)))
+    assert not ag._estructura_para_cantar_truco(una_fuerte)  # 7oro + basura → NO canto
+    # gané la 1ª y me queda una carta fuerte → sí (1-0 con segunda buena)
+    uno_cero = _obs_gane_primera((Carta(3, Palo.ESPADA), Carta(5, Palo.ORO)), cartas_rival=2)
+    assert ag._estructura_para_cantar_truco(uno_cero)
+
+
+def test_p_rival_supera_cuenta_las_que_ganan() -> None:
+    ag = AgentePIMC()
+    obs = _obs_gane_primera((Carta(1, Palo.ESPADA), Carta(5, Palo.ORO)), cartas_rival=2)
+    assert ag._p_rival_supera(obs, Carta(1, Palo.ESPADA)) == 0.0  # nada supera al macho
+    # a un 3 lo superan 4 cartas (7oro/7esp/hembra/macho) → prob > 0 (y bastante)
+    assert ag._p_rival_supera(obs, Carta(3, Palo.ORO)) > 0.10
 
 
 def _obs_liderando(mi_mano: tuple[Carta, ...]) -> EstadoObservable:
