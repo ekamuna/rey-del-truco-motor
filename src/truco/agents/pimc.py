@@ -21,6 +21,8 @@ from truco.core.acciones import Accion, TipoAccion, jugar_carta
 from truco.core.cards import Carta, baraja, fuerza_truco
 from truco.core.engine import acciones_legales, actor, aplicar
 from truco.core.scoring import (
+    NO_QUIERO_TRUCO,
+    VALOR_TRUCO,
     tanto_envido,
     valor_envido_no_querido,
     valor_envido_querido,
@@ -31,7 +33,6 @@ from truco.core.state import EstadoObservable, EstadoRonda, ResultadoBaza
 _TODAS = baraja()
 
 # Umbrales de decisión (probabilidad de ganar estimada por muestreo).
-_QUERER_TRUCO = 0.34  # aceptar truco salvo que sea claramente perdido (irse cuesta 1)
 _CANTAR = 0.55  # cantar solo con ventaja
 _MAX_RECHAZOS = 25  # intentos para muestrear una mano que cumpla la restricción
 
@@ -54,13 +55,11 @@ class AgentePIMC(Agent):
         seed: int = 0,
         tope_enumerar: int = 200,
         umbral_cantar: float = _CANTAR,
-        umbral_querer_truco: float = _QUERER_TRUCO,
         tanto_rival_canta_envido: int = _TANTO_RIVAL_CANTA,
     ) -> None:
         self.k = muestras
         self.tope = tope_enumerar
         self.umbral_cantar = umbral_cantar
-        self.umbral_querer_truco = umbral_querer_truco
         self.tanto_rival_canta_envido = tanto_rival_canta_envido
         self._rng = random.Random(seed)
 
@@ -71,7 +70,7 @@ class AgentePIMC(Agent):
                 if self._prob_gana_envido(obs) >= self._umbral_querer_envido_ev(obs):
                     return self._escalar_o_querer(obs, tipos)  # revira si tengo un monstruo
                 return Accion(TipoAccion.NO_QUIERO)
-            gana = self._prob_gana_cartas(obs) >= self.umbral_querer_truco
+            gana = self._prob_gana_cartas(obs) >= self._umbral_querer_truco_ev(obs)
             return Accion(TipoAccion.QUIERO) if gana else Accion(TipoAccion.NO_QUIERO)
 
         if TipoAccion.ENVIDO in tipos and self._prob_gana_envido(obs) >= self.umbral_cantar:
@@ -137,6 +136,16 @@ class AgentePIMC(Agent):
         if t >= 28 and TipoAccion.ENVIDO in tipos:
             return Accion(TipoAccion.ENVIDO)  # envido-envido (revira)
         return Accion(TipoAccion.QUIERO)
+
+    def _umbral_querer_truco_ev(self, obs: EstadoObservable) -> float:
+        """Break-even EV de aceptar el truco pendiente: aceptar (ganar/perder V) vs irse
+        (que regala Pnq al rival) → umbral = 0.5 − Pnq/(2V). Truco 0.25, retruco ~0.17,
+        vale cuatro ~0.13. Antes era un 0.34 FIJO → foldeaba trucos +EV (la fuga evitable
+        más grande medida en la autopsia, sobre todo contra faroleros)."""
+        neg = obs.pendiente
+        assert neg is not None
+        ultimo = neg.ultimo
+        return 0.5 - NO_QUIERO_TRUCO[ultimo] / (2 * VALOR_TRUCO[ultimo])
 
     def _umbral_querer_envido_ev(self, obs: EstadoObservable) -> float:
         """Umbral de equity para aceptar un envido: el **break-even EV del pote**.

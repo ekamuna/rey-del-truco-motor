@@ -201,6 +201,21 @@ def test_revira_el_envido_con_tanto_muy_fuerte() -> None:
     assert escala(27) is TipoAccion.QUIERO
 
 
+def test_umbral_aceptar_truco_es_break_even_del_nivel() -> None:
+    # Break-even EV de aceptar: truco 0.25, retruco 0.5-2/6, vale cuatro 0.5-3/8.
+    ag = AgentePIMC()
+
+    def umbral(ultimo: TipoAccion) -> float:
+        obs = _obs_respondiendo_envido((Carta(4, Palo.ORO),), 20)
+        neg = Negociacion(categoria="truco", cantos=(ultimo,), a_responder=1)
+        obs = replace(obs, pendiente=neg)
+        return ag._umbral_querer_truco_ev(obs)
+
+    assert abs(umbral(TipoAccion.TRUCO) - 0.25) < 1e-9
+    assert abs(umbral(TipoAccion.RETRUCO) - (0.5 - 2 / 6)) < 1e-9
+    assert abs(umbral(TipoAccion.VALE_CUATRO) - (0.5 - 3 / 8)) < 1e-9
+
+
 def test_umbral_aceptar_envido_es_break_even_del_pote() -> None:
     # Un envido simple querido vale 2; el 'no quiero' regala 1 → break-even eq = 0.25.
     obs = _obs_respondiendo_envido((Carta(4, Palo.ORO),), mi_tanto=20)
