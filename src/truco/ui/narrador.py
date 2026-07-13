@@ -47,6 +47,11 @@ def _quien(jugador: int, humano: int) -> str:
     return "vos" if jugador == humano else "la máquina"
 
 
+def _se_lleva(jugador: int, humano: int, pts: int) -> str:
+    """Frase conjugada bien: ``te llevás N`` / ``la máquina se lleva N``."""
+    return f"te llevás {pts}" if jugador == humano else f"la máquina se lleva {pts}"
+
+
 def _cadena_cantos(cantos: tuple[TipoAccion, ...]) -> str:
     return " → ".join(c.value for c in cantos)
 
@@ -115,7 +120,7 @@ def _narrar_no_quiero(
     # No quiso el truco: se cierra la ronda y el que cantó se lleva los puntos.
     ganador = despues.ganador if despues.ganador is not None else quien
     pts = _delta(antes, despues, ganador)
-    return [cabecera, f"     ═ {_quien(ganador, humano)} se lleva {pts} (no quisieron el truco)"]
+    return [cabecera, f"     ═ {_se_lleva(ganador, humano, pts)} (no quisieron el truco)"]
 
 
 def _resolucion_envido(
@@ -130,9 +135,10 @@ def _resolucion_envido(
         t_vos = despues.tantos[humano]
         t_maq = despues.tantos[1 - humano]
         lineas.append(f"     ═ tantos:  vos {t_vos}  —  {t_maq} la máquina")
-        lineas.append(f"     ═ gana el envido {_quien(ganador, humano)}  (+{pts})")
+        lineas.append(f"     ═ el envido es para {_quien(ganador, humano)}  (+{pts})")
     else:  # con "no quiero" nadie muestra las cartas
-        lineas.append(f"     ═ {_quien(ganador, humano)} se lleva el envido (+{pts}), sin mostrar")
+        verbo = "te llevás" if ganador == humano else "la máquina se lleva"
+        lineas.append(f"     ═ {verbo} el envido (+{pts}), sin mostrar")
     return lineas
 
 
@@ -142,7 +148,7 @@ def _narrar_mazo(quien: int, antes: EstadoRonda, despues: EstadoRonda, humano: i
     pts = _delta(antes, despues, ganador)
     return [
         f"  ▸ {_sujeto(quien, humano)} {verbo} al mazo",
-        f"     ═ {_quien(ganador, humano)} se lleva {pts}",
+        f"     ═ {_se_lleva(ganador, humano, pts)}",
     ]
 
 

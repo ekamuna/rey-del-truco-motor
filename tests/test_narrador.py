@@ -57,7 +57,7 @@ def test_envido_no_querido_no_revela_los_tantos() -> None:
     e2 = aplicar(e, canto(TipoAccion.ENVIDO))
     e3 = aplicar(e2, canto(TipoAccion.NO_QUIERO))
     texto = _texto(narrar_evento(e2, 1, canto(TipoAccion.NO_QUIERO), e3))
-    assert "+1" in texto and "vos" in texto  # el cantor (vos) se lleva 1
+    assert "+1" in texto and "te llevás" in texto  # el cantor (vos) se lleva 1
     assert "28" not in texto and "27" not in texto  # nadie mostró las cartas
 
 
