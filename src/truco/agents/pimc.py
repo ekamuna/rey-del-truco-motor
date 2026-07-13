@@ -17,6 +17,7 @@ import itertools
 import random
 
 from truco.agents.base import Agent
+from truco.agents.memoria_faroles import ConfigCazaFaroles, MemoriaFaroles
 from truco.core.acciones import Accion, TipoAccion, jugar_carta
 from truco.core.cards import Carta, baraja, fuerza_truco
 from truco.core.engine import acciones_legales, actor, aplicar
@@ -29,6 +30,7 @@ from truco.core.scoring import (
     valor_falta_envido,
 )
 from truco.core.state import EstadoObservable, EstadoRonda, ResultadoBaza
+from truco.trayectoria import Paso
 
 _TODAS = baraja()
 
@@ -56,19 +58,34 @@ class AgentePIMC(Agent):
         tope_enumerar: int = 200,
         umbral_cantar: float = _CANTAR,
         tanto_rival_canta_envido: int = _TANTO_RIVAL_CANTA,
+        memoria: MemoriaFaroles | None = None,
+        config_caza: ConfigCazaFaroles | None = None,
+        rival_id: str = "rival",
     ) -> None:
         self.k = muestras
         self.tope = tope_enumerar
         self.umbral_cantar = umbral_cantar
         self.tanto_rival_canta_envido = tanto_rival_canta_envido
         self._rng = random.Random(seed)
+        self.cfg_caza = config_caza or ConfigCazaFaroles()
+        self.memoria = memoria if memoria is not None else MemoriaFaroles()
+        self.rival_id = rival_id
+        self._rng_mix = random.Random(self.cfg_caza.seed_mixing)  # SEPARADO del muestreo
+
+    def observar_ronda(self, mi_jugador: int, trayectoria: tuple[Paso, ...]) -> None:
+        """Aprende los faroles de envido del rival (sólo si la caza está activada)."""
+        if self.cfg_caza.activar:
+            self.memoria.observar_ronda(mi_jugador, trayectoria, self.cfg_caza, self.rival_id)
 
     def actuar(self, obs: EstadoObservable, acciones: tuple[Accion, ...]) -> Accion:
         tipos = {a.tipo for a in acciones}
         if obs.pendiente is not None and TipoAccion.QUIERO in tipos:
             if obs.pendiente.categoria == "envido":
-                if self._prob_gana_envido(obs) >= self._umbral_querer_envido_ev(obs):
+                eq = self._prob_gana_envido(obs)
+                if eq >= self._umbral_querer_envido_ev(obs):
                     return self._escalar_o_querer(obs, tipos)  # revira si tengo un monstruo
+                if self._debo_explorar(obs, eq):  # pago un dudoso para verle el farol
+                    return Accion(TipoAccion.QUIERO)
                 return Accion(TipoAccion.NO_QUIERO)
             prob = self._prob_gana_cartas(obs)
             if prob >= self._umbral_querer_truco_ev(obs):
@@ -200,7 +217,41 @@ class AgentePIMC(Agent):
             piso = base + 2
         else:
             piso = base
-        return min(piso, 33)
+        piso = min(piso, 33)
+        return self._piso_ajustado_por_faroles(piso)
+
+    def _piso_ajustado_por_faroles(self, piso: int) -> int:
+        """Baja el piso según la fama de farolero del rival: si farolea el envido seguido,
+        imagino manos suyas más débiles y le PAGO lo que hoy foldearía. Gradual (Beta +
+        shrinkage): sin evidencia no cambia nada; un honesto tampoco lo mueve."""
+        c = self.cfg_caza
+        if not c.activar:
+            return piso
+        f = self.memoria.estimar_farol(self.rival_id, c)
+        n = self.memoria.intentos(self.rival_id)
+        confianza = n / (n + c.n0_confianza)
+        descuento = round(c.k_piso * confianza * max(0.0, f - c.f_base))
+        return max(c.piso_min, piso - descuento)
+
+    def _debo_explorar(self, obs: EstadoObservable, eq: float) -> bool:
+        """Mixing: pagar un envido DUDOSO (cerca del break-even) de vez en cuando para
+        generar un showdown y aprender si el rival farolea — sin esto la memoria nunca
+        arranca (foldear no destapa nada). Decae con la confianza; nunca en falta ni cerca
+        del match-point (una macana ahí cuesta la partida)."""
+        c = self.cfg_caza
+        neg = obs.pendiente
+        if not c.activar or c.p_mixing <= 0.0 or neg is None:
+            return False
+        umbral = self._umbral_querer_envido_ev(obs)
+        if not (umbral - c.margen_dudoso <= eq < umbral):  # sólo la banda dudosa
+            return False
+        if TipoAccion.FALTA_ENVIDO in neg.cantos:
+            return False
+        if max(obs.puntos_partida) >= c.mixing_solo_hasta_puntos:
+            return False
+        n = self.memoria.intentos(self.rival_id)
+        p_efectiva = c.p_mixing * (1.0 - n / (n + c.n0_confianza))  # explora menos al saber
+        return self._rng_mix.random() < p_efectiva
 
     def _candidatas(
         self, obs: EstadoObservable, tope: int, piso_tanto: int | None = None

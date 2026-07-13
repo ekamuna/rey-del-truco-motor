@@ -113,6 +113,13 @@ def observacion_de(estado: EstadoRonda, jugador: int) -> EstadoObservable:
     )
 
 
+def tanto_rival_publico(estado: EstadoRonda, rival: int) -> int | None:
+    """Alias público del filtro de fidelidad: el tanto del rival sólo si es información
+    que apareció en la mesa (envido con quiero y el rival mostró). Lo usa la caza de
+    faroles para no inventar una regla de visibilidad distinta a la del motor."""
+    return _tanto_rival_publico(estado, rival)
+
+
 def _tanto_rival_publico(estado: EstadoRonda, rival: int) -> int | None:
     """El tanto del rival es público si cantó el número: es mano (canta primero)
     o ganó el envido (canta para superar). Si perdió siendo pie dijo 'son buenas'."""

@@ -87,6 +87,25 @@ class AgenteEstratega(AgenteReglas):
 # --- Factories del panel realista -------------------------------------------
 
 
+class AgenteFaroleroEnvido(AgenteReglas):
+    """Farolea el ENVIDO con tanto bajo para robar (como el humano del partido 15-14):
+    si tiene derecho a cantar y su tanto es malo, canta igual con probabilidad alta.
+    El truco lo juega honesto. Sirve para probar el bluff-catching del bot."""
+
+    def _considerar_canto(self, obs: EstadoObservable, tipos: set[TipoAccion]) -> Accion | None:
+        if TipoAccion.ENVIDO in tipos and obs.mi_tanto < 27 and self._rng.random() < 0.7:
+            return Accion(TipoAccion.ENVIDO)  # farol de envido con tanto bajo
+        return super()._considerar_canto(obs, tipos)
+
+
+def farolero_envido_real(seed: int | None = None) -> AgenteFaroleroEnvido:
+    """Rival que farolea el envido seguido (para medir la caza de faroles del bot)."""
+    return AgenteFaroleroEnvido(
+        ConfigReglas(cantar_envido=27, querer_envido=25, cantar_truco_fuerza=10),
+        seed=seed,
+    )
+
+
 def conservador_real(seed: int | None = None) -> AgenteReglas:
     """Sólo apuesta con manos muy buenas; nunca farolea; foldea si duda."""
     return AgenteReglas(
