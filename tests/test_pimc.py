@@ -240,6 +240,20 @@ def test_estructura_para_cantar_exige_dos_bazas() -> None:
     assert ag._estructura_para_cantar_truco(uno_cero)
 
 
+def test_lidera_mas_alta_en_baza_decisiva_tras_parda() -> None:
+    # FIX D: tras una parda, la baza que lidero DEFINE la mano → liderar la MÁS ALTA (no la
+    # más baja). Escenario R12: parda en baza 1, lidero baza 2 con {12o, 6b} → debe ir el 12o.
+    ag = AgentePIMC()
+    parda = ResultadoBaza(cartas=(Carta(1, Palo.COPA), Carta(1, Palo.ORO)), ganador=None)
+    base = _obs_gane_primera((Carta(12, Palo.ORO), Carta(6, Palo.BASTO)), cartas_rival=2)
+    obs = replace(base, jugador=0, mano=0, bazas=(parda,), nivel_truco=0, truco_querido=False)
+    assert ag._liderar(obs, [Carta(12, Palo.ORO), Carta(6, Palo.BASTO)]).carta == Carta(12, Palo.ORO)
+    # control: baza 2 SIN parda (gané la 1ª) → slow-play, la más baja (comportamiento previo)
+    gane = ResultadoBaza(cartas=(Carta(4, Palo.ORO), Carta(11, Palo.COPA)), ganador=0)
+    obs2 = replace(obs, bazas=(gane,))
+    assert ag._liderar(obs2, [Carta(12, Palo.ORO), Carta(6, Palo.BASTO)]).carta == Carta(6, Palo.BASTO)
+
+
 def test_p_rival_supera_cuenta_las_que_ganan() -> None:
     ag = AgentePIMC()
     obs = _obs_gane_primera((Carta(1, Palo.ESPADA), Carta(5, Palo.ORO)), cartas_rival=2)

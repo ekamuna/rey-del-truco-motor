@@ -141,11 +141,22 @@ class AgentePIMC(Agent):
         ganar la 1ª gana la ronda si la 3ª se emparda. Con una carta fuerte, en cambio,
         **slow-play**: liderar la más baja y guardar la fuerte (medido: +0.034/ronda en
         manos flojas; nunca liderar tu única carta fuerte, es el peor error)."""
+        if self._lidero_baza_decisiva(obs):  # FIX D: tras parda, la baza que lidero DEFINE
+            return jugar_carta(max(cartas, key=fuerza_truco))  # → liderar la MÁS ALTA para ganarla
         if len(obs.bazas) != 0 or len(cartas) < 3:
             return jugar_carta(min(cartas, key=fuerza_truco))  # baza 2+ o pocas: la más baja
         if all(fuerza_truco(c) < 8 for c in cartas):  # mano floja → hacer primera
             return jugar_carta(max(cartas, key=fuerza_truco))
         return jugar_carta(min(cartas, key=fuerza_truco))  # tengo una fuerte → guardarla
+
+    def _lidero_baza_decisiva(self, obs: EstadoObservable) -> bool:
+        """¿La baza que estoy por LIDERAR define la mano? (FIX D) Tras una parda con las
+        bazas parejas, el que gana la próxima gana la mano → hay que liderar la MÁS ALTA
+        (no la más baja). Sin esto, tras una parda el bot regalaba manos ganadas liderando
+        su peor carta en la baza decisiva (error medido, docs/LOGICA-TRUCO.md)."""
+        g, p = self._bazas_ganadas(obs)
+        hubo_parda = any(b.ganador is None for b in obs.bazas)
+        return hubo_parda and g == p
 
     # --- Inferencia por muestreo ---------------------------------------------
 

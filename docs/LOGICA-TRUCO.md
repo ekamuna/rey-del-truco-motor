@@ -73,3 +73,11 @@ En `agents/pimc.py`:
   1ª y canta" → subir la vara para querer. (El PIMC hoy no lee eso.)
 - **Envido defensa por frecuencia** (Target #1): pagar 26+ si el rival canta envido seguido.
 - **Envido ofensiva conservadora**: cantar de mano sólo con tanto fuerte (no 23-24).
+
+## Implementado (FIX D, 2026-07-13)
+`_lidero_baza_decisiva(obs)`: tras una parda con bazas parejas (g==p), la baza que lidero
+DEFINE la mano → `_liderar` juega la carta MÁS ALTA (antes: siempre la más baja en baza 2+,
+que en el desempate post-parda regalaba manos ganadas — error R12 de la partida seed 7).
+Medido winrate-neutral (A+B+D 75.2% vs A+B 75.0%, 120 part × seeds 11/22/33); corrige el
+bug sin costo (el panel lo subvalora: el spot es raro, contra humano importa). TDD:
+`test_lidera_mas_alta_en_baza_decisiva_tras_parda`. 155 tests.
