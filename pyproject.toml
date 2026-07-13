@@ -14,6 +14,7 @@ truco = "truco.ui.cli:cli"
 truco-entrenar = "truco.rl.entrenar:main"
 truco-entrenar-red = "truco.rl.entrenar_red:main"
 truco-panel = "truco.rl.panel:main"
+truco-scoreboard = "truco.scoreboard:main"
 
 [dependency-groups]
 dev = [
