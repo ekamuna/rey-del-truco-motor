@@ -70,8 +70,10 @@ class AgentePIMC(Agent):
                 if self._prob_gana_envido(obs) >= self._umbral_querer_envido_ev(obs):
                     return self._escalar_o_querer(obs, tipos)  # revira si tengo un monstruo
                 return Accion(TipoAccion.NO_QUIERO)
-            gana = self._prob_gana_cartas(obs) >= self._umbral_querer_truco_ev(obs)
-            return Accion(TipoAccion.QUIERO) if gana else Accion(TipoAccion.NO_QUIERO)
+            prob = self._prob_gana_cartas(obs)
+            if prob >= self._umbral_querer_truco_ev(obs):
+                return self._escalar_o_querer_truco(obs, tipos, prob)
+            return Accion(TipoAccion.NO_QUIERO)
 
         if TipoAccion.ENVIDO in tipos and self._prob_gana_envido(obs) >= self.umbral_cantar:
             return Accion(TipoAccion.ENVIDO)
@@ -135,6 +137,18 @@ class AgentePIMC(Agent):
             return Accion(TipoAccion.REAL_ENVIDO)
         if t >= 28 and TipoAccion.ENVIDO in tipos:
             return Accion(TipoAccion.ENVIDO)  # envido-envido (revira)
+        return Accion(TipoAccion.QUIERO)
+
+    def _escalar_o_querer_truco(
+        self, obs: EstadoObservable, tipos: set[TipoAccion], prob: float
+    ) -> Accion:
+        """Ya decidí querer el truco; con una mano casi ganada (prob muy alta) ESCALO
+        a retruco/vale cuatro para inflar el pozo en vez de flat-call (valor puro que la
+        autopsia marcó: nunca subía con monstruos). Umbral alto para no escalar faroles."""
+        if prob >= 0.80:
+            for subir in (TipoAccion.VALE_CUATRO, TipoAccion.RETRUCO):
+                if subir in tipos:
+                    return Accion(subir)
         return Accion(TipoAccion.QUIERO)
 
     def _umbral_querer_truco_ev(self, obs: EstadoObservable) -> float:

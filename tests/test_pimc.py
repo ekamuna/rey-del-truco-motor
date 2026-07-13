@@ -201,6 +201,19 @@ def test_revira_el_envido_con_tanto_muy_fuerte() -> None:
     assert escala(27) is TipoAccion.QUIERO
 
 
+def test_escala_truco_con_mano_casi_ganada() -> None:
+    # Al querer un truco con prob muy alta, escala a retruco (valor); si no, quiere.
+    ag = AgentePIMC()
+    obs = _obs_respondiendo_envido((Carta(4, Palo.ORO),), 20)
+    neg = Negociacion(categoria="truco", cantos=(TipoAccion.TRUCO,), a_responder=1)
+    obs = replace(obs, pendiente=neg)
+    subible = {TipoAccion.QUIERO, TipoAccion.NO_QUIERO, TipoAccion.RETRUCO}
+    assert ag._escalar_o_querer_truco(obs, subible, 0.90).tipo is TipoAccion.RETRUCO
+    assert ag._escalar_o_querer_truco(obs, subible, 0.50).tipo is TipoAccion.QUIERO
+    # sin subida disponible, simplemente quiere
+    assert ag._escalar_o_querer_truco(obs, {TipoAccion.QUIERO}, 0.90).tipo is TipoAccion.QUIERO
+
+
 def test_umbral_aceptar_truco_es_break_even_del_nivel() -> None:
     # Break-even EV de aceptar: truco 0.25, retruco 0.5-2/6, vale cuatro 0.5-3/8.
     ag = AgentePIMC()
