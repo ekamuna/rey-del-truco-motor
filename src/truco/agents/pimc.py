@@ -92,7 +92,7 @@ class AgentePIMC(Agent):
         en adelante, en cambio, hay que cerrar: si puedo ganar, gano."""
         rival = obs.mesa[1 - obs.jugador]
         if rival is None:
-            return jugar_carta(min(cartas, key=fuerza_truco))  # liderar con la más baja
+            return self._liderar(obs, cartas)
         fr = fuerza_truco(rival)
         matan = [c for c in cartas if fuerza_truco(c) > fr]
         empardan = [c for c in cartas if fuerza_truco(c) == fr]
@@ -105,6 +105,18 @@ class AgentePIMC(Agent):
             if grupo:
                 return jugar_carta(min(grupo, key=fuerza_truco))
         return jugar_carta(min(cartas, key=fuerza_truco))  # inalcanzable, por completitud
+
+    def _liderar(self, obs: EstadoObservable, cartas: list[Carta]) -> Accion:
+        """Qué carta liderar. Con mano FLOJA (ninguna carta fuerte, fuerza≥8) conviene
+        **hacer primera**: liderar la MÁS ALTA para ganar la 1ª — con la regla de pardas,
+        ganar la 1ª gana la ronda si la 3ª se emparda. Con una carta fuerte, en cambio,
+        **slow-play**: liderar la más baja y guardar la fuerte (medido: +0.034/ronda en
+        manos flojas; nunca liderar tu única carta fuerte, es el peor error)."""
+        if len(obs.bazas) != 0 or len(cartas) < 3:
+            return jugar_carta(min(cartas, key=fuerza_truco))  # baza 2+ o pocas: la más baja
+        if all(fuerza_truco(c) < 8 for c in cartas):  # mano floja → hacer primera
+            return jugar_carta(max(cartas, key=fuerza_truco))
+        return jugar_carta(min(cartas, key=fuerza_truco))  # tengo una fuerte → guardarla
 
     # --- Inferencia por muestreo ---------------------------------------------
 

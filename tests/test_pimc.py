@@ -214,6 +214,44 @@ def test_escala_truco_con_mano_casi_ganada() -> None:
     assert ag._escalar_o_querer_truco(obs, {TipoAccion.QUIERO}, 0.90).tipo is TipoAccion.QUIERO
 
 
+def _obs_liderando(mi_mano: tuple[Carta, ...]) -> EstadoObservable:
+    """Jugador 0 lidera la baza 1 (nadie tiró todavía)."""
+    return EstadoObservable(
+        jugador=0,
+        mi_mano=mi_mano,
+        mano=0,
+        turno=0,
+        mesa=(None, None),
+        bazas=(),
+        cartas_rival=len(mi_mano),
+        pendiente=None,
+        nivel_truco=0,
+        truco_querido=False,
+        envido_resuelto=True,
+        puntos_partida=(0, 0),
+        objetivo=15,
+        terminada=False,
+        ganador=None,
+        puntos_ronda=(0, 0),
+        mi_tanto=20,
+        tanto_rival=None,
+    )
+
+
+def test_lidera_hacer_primera_con_mano_floja() -> None:
+    # Todas fuerza < 8 → liderar la MÁS ALTA (hacer primera; gana la 3ª por parda).
+    obs = _obs_liderando((Carta(11, Palo.BASTO), Carta(4, Palo.COPA), Carta(5, Palo.ORO)))
+    accion = AgentePIMC(seed=0)._elegir_carta(obs, list(obs.mi_mano))
+    assert accion.carta == Carta(11, Palo.BASTO)  # fuerza 5, la más alta
+
+
+def test_lidera_slow_play_con_carta_fuerte() -> None:
+    # Con una carta fuerte (2♠ fuerza 8) → liderar la MÁS BAJA (guardar la fuerte).
+    obs = _obs_liderando((Carta(2, Palo.ESPADA), Carta(4, Palo.COPA), Carta(5, Palo.ORO)))
+    accion = AgentePIMC(seed=0)._elegir_carta(obs, list(obs.mi_mano))
+    assert accion.carta == Carta(4, Palo.COPA)  # fuerza 0, la más baja
+
+
 def test_umbral_aceptar_truco_es_break_even_del_nivel() -> None:
     # Break-even EV de aceptar: truco 0.25, retruco 0.5-2/6, vale cuatro 0.5-3/8.
     ag = AgentePIMC()
