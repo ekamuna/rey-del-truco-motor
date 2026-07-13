@@ -131,6 +131,55 @@ def test_deduccion_con_que_me_mato() -> None:
     assert _consistente(obs, [Carta(5, Palo.ORO), Carta(4, Palo.COPA)], [], intervalos)
 
 
+def _obs_respondiendo_carta(
+    mi_mano: tuple[Carta, ...], carta_rival: Carta, bazas: tuple[ResultadoBaza, ...]
+) -> EstadoObservable:
+    """Jugador 0; el rival lideró la baza en curso con ``carta_rival`` y debo jugar."""
+    return EstadoObservable(
+        jugador=0,
+        mi_mano=mi_mano,
+        mano=1,
+        turno=0,
+        mesa=(None, carta_rival),
+        bazas=bazas,
+        cartas_rival=len(mi_mano),
+        pendiente=None,
+        nivel_truco=0,
+        truco_querido=False,
+        envido_resuelto=True,
+        puntos_partida=(0, 0),
+        objetivo=15,
+        terminada=False,
+        ganador=None,
+        puntos_ronda=(0, 0),
+        mi_tanto=20,
+        tanto_rival=None,
+    )
+
+
+def test_emparda_en_baza1_en_vez_de_matar() -> None:
+    # Mano: 1-basto (brava), 5-oro, 11-basto. Rival lidera la 1ª con 11-copa.
+    # La política EMPARDA con el 11 (guarda la brava para la 2ª), no mata con el 1.
+    obs = _obs_respondiendo_carta(
+        (Carta(1, Palo.BASTO), Carta(5, Palo.ORO), Carta(11, Palo.BASTO)),
+        Carta(11, Palo.COPA),
+        bazas=(),
+    )
+    accion = AgentePIMC(seed=0)._elegir_carta(obs, list(obs.mi_mano))
+    assert accion.carta == Carta(11, Palo.BASTO)
+
+
+def test_gana_en_baza2_no_emparda() -> None:
+    # En baza 2, si puedo ganar, GANO (no emparo): mato con la brava.
+    obs = _obs_respondiendo_carta(
+        (Carta(1, Palo.BASTO), Carta(11, Palo.BASTO)),
+        Carta(11, Palo.COPA),
+        bazas=(ResultadoBaza(cartas=(Carta(4, Palo.ORO), Carta(5, Palo.ORO)), ganador=1),),
+    )
+    accion = AgentePIMC(seed=0)._elegir_carta(obs, list(obs.mi_mano))
+    assert accion.carta == Carta(1, Palo.BASTO)
+
+
 def test_umbral_aceptar_envido_es_break_even_del_pote() -> None:
     # Un envido simple querido vale 2; el 'no quiero' regala 1 → break-even eq = 0.25.
     obs = _obs_respondiendo_envido((Carta(4, Palo.ORO),), mi_tanto=20)

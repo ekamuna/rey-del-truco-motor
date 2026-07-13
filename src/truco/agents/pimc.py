@@ -79,7 +79,30 @@ class AgentePIMC(Agent):
             return Accion(TipoAccion.TRUCO)
 
         cartas = [a.carta for a in acciones if a.tipo is TipoAccion.JUGAR and a.carta is not None]
-        return _min_que_gana(cartas, obs.mesa[1 - obs.jugador])
+        return self._elegir_carta(obs, cartas)
+
+    def _elegir_carta(self, obs: EstadoObservable, cartas: list[Carta]) -> Accion:
+        """Política de cartas mejor que 'la mínima que gana' (medida: +0.067/ronda).
+
+        Clave: ``_min_que_gana`` usa ``>`` estricto, así que NUNCA emparda. Pero
+        empardar la 1ª baza (aun pudiendo matar) preserva la estructura de la mano y
+        me deja de respondedor en la 2ª (parda 1ª + gano 2ª = gano la ronda). De la 2ª
+        en adelante, en cambio, hay que cerrar: si puedo ganar, gano."""
+        rival = obs.mesa[1 - obs.jugador]
+        if rival is None:
+            return jugar_carta(min(cartas, key=fuerza_truco))  # liderar con la más baja
+        fr = fuerza_truco(rival)
+        matan = [c for c in cartas if fuerza_truco(c) > fr]
+        empardan = [c for c in cartas if fuerza_truco(c) == fr]
+        pierden = [c for c in cartas if fuerza_truco(c) < fr]
+        if len(obs.bazas) == 0:  # baza 1: empardar tiene prioridad sobre matar
+            preferencia = (empardan, matan, pierden)
+        else:  # baza 2+: cerrar, tomar la baza
+            preferencia = (matan, empardan, pierden)
+        for grupo in preferencia:
+            if grupo:
+                return jugar_carta(min(grupo, key=fuerza_truco))
+        return jugar_carta(min(cartas, key=fuerza_truco))  # inalcanzable, por completitud
 
     # --- Inferencia por muestreo ---------------------------------------------
 
