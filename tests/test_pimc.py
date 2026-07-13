@@ -331,6 +331,32 @@ def test_umbral_aceptar_truco_es_break_even_del_nivel() -> None:
     assert abs(umbral(TipoAccion.VALE_CUATRO) - (0.5 - 3 / 8)) < 1e-9
 
 
+def test_umbral_querer_truco_sube_a_favorito_en_muerte_subita() -> None:
+    """FIX F: cerca del final el punto no es lineal. Si perder el quiero le da el PARTIDO
+    al rival pero foldear me mantiene vivo (y no voy atrás), exijo ser FAVORITO (0.5), no
+    el break-even 0.25 que ignora que perder aquí = perder el partido. Si foldear también
+    pierde, o si voy atrás, es mi única chance → break-even normal (peleo)."""
+    ag = AgentePIMC()
+
+    def umbral(mis_puntos: int, opp: int) -> float:
+        # soy jugador 1 → puntos_partida = (opp, mis_puntos)
+        obs = _obs_respondiendo_envido((Carta(4, Palo.ORO),), 20)
+        neg = Negociacion(categoria="truco", cantos=(TipoAccion.TRUCO,), a_responder=1)
+        obs = replace(obs, pendiente=neg, puntos_partida=(opp, mis_puntos), objetivo=15)
+        return ag._umbral_querer_truco_ev(obs)
+
+    # Muerte súbita yendo GANANDO/parejo: perder (opp+2=15) da el partido, foldear (opp+1=14)
+    # no → exijo favorito. Es el spot g2r13 (bot 14, rival 13).
+    assert abs(umbral(14, 13) - 0.5) < 1e-9
+    assert abs(umbral(13, 13) - 0.5) < 1e-9  # parejo, mismo criterio
+    # Foldear TAMBIÉN pierde (opp a 14, su no-quiero llega a 15) → break-even normal, peleo.
+    assert abs(umbral(13, 14) - 0.25) < 1e-9
+    # Voy MUY atrás (necesito varianza) → break-even normal aunque sea muerte súbita.
+    assert abs(umbral(10, 13) - 0.25) < 1e-9
+    # Lejos del final (el rival no llega al partido ganando el truco) → break-even normal.
+    assert abs(umbral(5, 6) - 0.25) < 1e-9
+
+
 def test_umbral_aceptar_envido_es_break_even_del_pote() -> None:
     # Un envido simple querido vale 2; el 'no quiero' regala 1 → break-even eq = 0.25.
     obs = _obs_respondiendo_envido((Carta(4, Palo.ORO),), mi_tanto=20)

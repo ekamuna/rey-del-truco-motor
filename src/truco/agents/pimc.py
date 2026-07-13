@@ -258,11 +258,27 @@ class AgentePIMC(Agent):
         """Break-even EV de aceptar el truco pendiente: aceptar (ganar/perder V) vs irse
         (que regala Pnq al rival) → umbral = 0.5 − Pnq/(2V). Truco 0.25, retruco ~0.17,
         vale cuatro ~0.13. Antes era un 0.34 FIJO → foldeaba trucos +EV (la fuga evitable
-        más grande medida en la autopsia, sobre todo contra faroleros)."""
+        más grande medida en la autopsia, sobre todo contra faroleros).
+
+        CONSCIENTE DEL MARCADOR (FIX F, análoga a FIX E en el envido): cerca del final el
+        punto no es lineal. Si perder el quiero le da el PARTIDO al rival (opp + V ≥
+        objetivo) pero foldear me mantiene vivo (opp + Pnq < objetivo) y NO voy atrás,
+        el quiero deja de ser un +EV de puntos y pasa a ser 'jugarme el partido en esta
+        mano' (muerte súbita) → lo acepto sólo siendo favorito (0.5), no al break-even
+        0.25. Si foldear TAMBIÉN pierde el partido, es mi única chance → break-even normal
+        (peleo). Yendo atrás, ídem: necesito la varianza. Sin esto el bot quería un truco
+        con mano floja (máx f6) yendo 14-13 y regalaba el partido (autopsia g2r13)."""
         neg = obs.pendiente
         assert neg is not None
         ultimo = neg.ultimo
-        return 0.5 - NO_QUIERO_TRUCO[ultimo] / (2 * VALOR_TRUCO[ultimo])
+        base = 0.5 - NO_QUIERO_TRUCO[ultimo] / (2 * VALOR_TRUCO[ultimo])
+        yo = obs.jugador
+        mis_puntos, opp = obs.puntos_partida[yo], obs.puntos_partida[1 - yo]
+        v, pnq = VALOR_TRUCO[ultimo], NO_QUIERO_TRUCO[ultimo]
+        muerte_subita = opp + v >= obs.objetivo and opp + pnq < obs.objetivo
+        if muerte_subita and mis_puntos >= opp:
+            return max(base, 0.5)  # sólo me juego el partido siendo favorito
+        return base
 
     def _umbral_querer_envido_ev(self, obs: EstadoObservable) -> float:
         """Umbral de equity para aceptar un envido: el **break-even EV del pote**.
