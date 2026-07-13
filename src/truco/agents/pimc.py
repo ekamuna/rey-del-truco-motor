@@ -36,23 +36,34 @@ class AgentePIMC(Agent):
     """Enumera TODAS las manos posibles del rival (exacto) cuando son pocas; si son
     demasiadas (miles), cae a muestreo Monte Carlo de ``muestras`` manos."""
 
-    def __init__(self, muestras: int = 80, seed: int = 0, tope_enumerar: int = 200) -> None:
+    def __init__(
+        self,
+        muestras: int = 80,
+        seed: int = 0,
+        tope_enumerar: int = 200,
+        umbral_cantar: float = _CANTAR,
+        umbral_querer_truco: float = _QUERER_TRUCO,
+        umbral_querer_envido: float = _QUERER_ENVIDO,
+    ) -> None:
         self.k = muestras
         self.tope = tope_enumerar
+        self.umbral_cantar = umbral_cantar
+        self.umbral_querer_truco = umbral_querer_truco
+        self.umbral_querer_envido = umbral_querer_envido
         self._rng = random.Random(seed)
 
     def actuar(self, obs: EstadoObservable, acciones: tuple[Accion, ...]) -> Accion:
         tipos = {a.tipo for a in acciones}
         if obs.pendiente is not None and TipoAccion.QUIERO in tipos:
             if obs.pendiente.categoria == "envido":
-                gana = self._prob_gana_envido(obs) >= _QUERER_ENVIDO
+                gana = self._prob_gana_envido(obs) >= self.umbral_querer_envido
             else:
-                gana = self._prob_gana_cartas(obs) >= _QUERER_TRUCO
+                gana = self._prob_gana_cartas(obs) >= self.umbral_querer_truco
             return Accion(TipoAccion.QUIERO) if gana else Accion(TipoAccion.NO_QUIERO)
 
-        if TipoAccion.ENVIDO in tipos and self._prob_gana_envido(obs) >= _CANTAR:
+        if TipoAccion.ENVIDO in tipos and self._prob_gana_envido(obs) >= self.umbral_cantar:
             return Accion(TipoAccion.ENVIDO)
-        if TipoAccion.TRUCO in tipos and self._prob_gana_cartas(obs) >= _CANTAR:
+        if TipoAccion.TRUCO in tipos and self._prob_gana_cartas(obs) >= self.umbral_cantar:
             return Accion(TipoAccion.TRUCO)
 
         cartas = [a.carta for a in acciones if a.tipo is TipoAccion.JUGAR and a.carta is not None]
@@ -76,34 +87,71 @@ class AgentePIMC(Agent):
         return ganadas / len(manos)
 
     def _candidatas(self, obs: EstadoObservable, tope: int) -> list[list[Carta]]:
-        """TODAS las manos ocultas posibles del rival, consistentes con lo mostrado y
-        con el tanto cantado. Si superan ``tope``, cae a un muestreo de ``self.k``."""
+        """TODAS las manos ocultas posibles del rival, consistentes con: lo mostrado,
+        el tanto cantado, y con QUÉ carta me mató (asumiendo que juega la mínima que
+        gana). Si superan ``tope``, cae a un muestreo de ``self.k``."""
         pozo = _pozo(obs)
         jugadas = _rival_jugadas(obs)
         faltan = min(obs.cartas_rival, len(pozo))
+        intervalos = _intervalos_prohibidos(obs)
         consistentes: list[list[Carta]] = []
         for combo in itertools.combinations(pozo, faltan):
             mano = list(combo)
-            if obs.tanto_rival is None or tanto_envido(tuple(jugadas + mano)) == obs.tanto_rival:
+            if _consistente(obs, mano, jugadas, intervalos):
                 consistentes.append(mano)
                 if len(consistentes) > tope:
-                    return [self._muestrear_rival(obs, pozo) for _ in range(self.k)]
+                    return [self._muestrear_rival(obs, pozo, intervalos) for _ in range(self.k)]
         return consistentes
 
-    def _muestrear_rival(self, obs: EstadoObservable, pozo: list[Carta]) -> list[Carta]:
-        """Muestrea las cartas ocultas del rival, respetando el tanto cantado."""
+    def _muestrear_rival(
+        self,
+        obs: EstadoObservable,
+        pozo: list[Carta],
+        intervalos: list[tuple[int, int]] | None = None,
+    ) -> list[Carta]:
+        """Muestrea las cartas ocultas del rival (tanto cantado + con qué me mató)."""
+        if intervalos is None:
+            intervalos = _intervalos_prohibidos(obs)
         jugadas = _rival_jugadas(obs)
         faltan = min(obs.cartas_rival, len(pozo))
         for _ in range(_MAX_RECHAZOS):
             restante = self._rng.sample(pozo, faltan)
-            if obs.tanto_rival is None:
-                return restante
-            if tanto_envido(tuple(jugadas + restante)) == obs.tanto_rival:
+            if _consistente(obs, restante, jugadas, intervalos):
                 return restante
         return self._rng.sample(pozo, faltan)  # si no encontró, muestra libre
 
 
 # --- Helpers puros -----------------------------------------------------------
+
+
+def _intervalos_prohibidos(obs: EstadoObservable) -> list[tuple[int, int]]:
+    """Deducción del experto: si LIDERÉ una baza y el rival me la ganó respondiendo
+    con la carta X (asumiendo que juega la mínima que gana), sus otras cartas NO
+    tienen fuerza estrictamente entre mi carta y X. Devuelve esos intervalos (lo, hi)."""
+    yo, rival = obs.jugador, 1 - obs.jugador
+    intervalos: list[tuple[int, int]] = []
+    lider = obs.mano
+    for baza in obs.bazas:
+        if lider == yo and baza.ganador == rival:
+            f_mia = fuerza_truco(baza.cartas[yo])
+            f_rival = fuerza_truco(baza.cartas[rival])
+            if f_rival > f_mia:
+                intervalos.append((f_mia, f_rival))
+        lider = obs.mano if baza.ganador is None else baza.ganador
+    return intervalos
+
+
+def _consistente(
+    obs: EstadoObservable,
+    mano: list[Carta],
+    jugadas: list[Carta],
+    intervalos: list[tuple[int, int]],
+) -> bool:
+    """¿Una mano imaginada es posible? Debe dar el tanto cantado (si lo hay) y no
+    tener cartas en los intervalos prohibidos por 'con qué me mató'."""
+    if obs.tanto_rival is not None and tanto_envido(tuple(jugadas + mano)) != obs.tanto_rival:
+        return False
+    return not any(lo < fuerza_truco(c) < hi for c in mano for lo, hi in intervalos)
 
 
 def _gano_envido(obs: EstadoObservable, tanto_rival: int) -> bool:
