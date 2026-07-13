@@ -49,6 +49,11 @@ class ConfigCazaFaroles:
     f_base: float = 0.15  # tasa de farol "normal"; sólo por encima se descuenta
     k_piso: float = 12.0  # cuántos puntos de piso baja un farolero confiable
     n0_confianza: float = 4.0  # shrinkage: observaciones para "media confianza"
+    # --- Target #1: FRECUENCIA de canto (sin necesidad de showdown) ---
+    # Si el rival canta envido en una fracción alta de rondas, su rango es ANCHO
+    # (matemáticamente incluye tantos flojos: no podés cantar el 50% con sólo monstruos)
+    # → bajo el piso aunque nunca se haya destapado un farol. Arregla el over-fold del 26.
+    f_base_canto: float = 0.22  # tasa de canto "normal" (~cantar sólo 27+); por encima, descuento
     # --- mixing (pagar dudosos para generar showdowns) ---
     p_mixing: float = 0.0  # prob base de pagar un envido dudoso para ver
     margen_dudoso: float = 0.12  # banda de equity por debajo del umbral EV que es "dudosa"
@@ -69,6 +74,8 @@ class MemoriaFaroles:
     conteos: dict[str, tuple[int, int]] = field(default_factory=dict)
     #: rival_id -> (pescas, oportunidades_de_mano_sin_cantar_con_tanto_visible)
     pescas: dict[str, tuple[int, int]] = field(default_factory=dict)
+    #: rival_id -> (rondas_donde_canto_envido, rondas_totales) — FRECUENCIA, sin showdown
+    cantos: dict[str, tuple[int, int]] = field(default_factory=dict)
 
     def estimar_farol(self, rival_id: str, cfg: ConfigCazaFaroles) -> float:
         exitos, intentos = self.conteos.get(rival_id, (0, 0))
@@ -83,6 +90,18 @@ class MemoriaFaroles:
 
     def intentos_pesca(self, rival_id: str) -> int:
         return self.pescas.get(rival_id, (0, 0))[1]
+
+    def frecuencia_canto(self, rival_id: str, cfg: ConfigCazaFaroles) -> float:
+        """Fracción de rondas en que el rival cantó el envido (Beta-Bernoulli con prior)."""
+        exitos, intentos = self.cantos.get(rival_id, (0, 0))
+        return (exitos + cfg.prior_alfa) / (intentos + cfg.prior_alfa + cfg.prior_beta)
+
+    def intentos_canto(self, rival_id: str) -> int:
+        return self.cantos.get(rival_id, (0, 0))[1]
+
+    def _registrar_canto(self, rival_id: str, canto: bool) -> None:
+        exitos, intentos = self.cantos.get(rival_id, (0, 0))
+        self.cantos[rival_id] = (exitos + int(canto), intentos + 1)
 
     def _registrar(self, rival_id: str, mintio: bool) -> None:
         exitos, intentos = self.conteos.get(rival_id, (0, 0))
@@ -108,6 +127,7 @@ class MemoriaFaroles:
         rival_canto_envido = any(
             paso.quien == rival and paso.accion.tipo in CANTOS_ENVIDO for paso in trayectoria
         )
+        self._registrar_canto(rival_id, rival_canto_envido)  # frecuencia (sin showdown)
         self._aprender_pesca(rival, rival_canto_envido, inicial, final, cfg, rival_id)
         self._aprender_farol(mi_jugador, rival, rival_canto_envido, final, cfg, rival_id)
 
@@ -156,6 +176,7 @@ class MemoriaFaroles:
         return {
             "conteos": {k: list(v) for k, v in self.conteos.items()},
             "pescas": {k: list(v) for k, v in self.pescas.items()},
+            "cantos": {k: list(v) for k, v in self.cantos.items()},
         }
 
     @classmethod
@@ -165,4 +186,4 @@ class MemoriaFaroles:
             assert isinstance(crudos, dict)
             return {k: (int(v[0]), int(v[1])) for k, v in crudos.items()}
 
-        return cls(conteos=_leer("conteos"), pescas=_leer("pescas"))
+        return cls(conteos=_leer("conteos"), pescas=_leer("pescas"), cantos=_leer("cantos"))

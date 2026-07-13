@@ -272,17 +272,21 @@ class AgentePIMC(Agent):
         return self._piso_ajustado_por_faroles(piso)
 
     def _piso_ajustado_por_faroles(self, piso: int) -> int:
-        """Baja el piso según la fama de farolero del rival: si farolea el envido seguido,
-        imagino manos suyas más débiles y le PAGO lo que hoy foldearía. Gradual (Beta +
-        shrinkage): sin evidencia no cambia nada; un honesto tampoco lo mueve."""
+        """Baja el piso según la fama del rival: si farolea/canta el envido seguido, imagino
+        manos suyas más débiles y le PAGO lo que hoy foldearía. Dos señales, tomo la más
+        fuerte: (1) FAROLES destapados (fiel, pero necesita showdowns); (2) FRECUENCIA de
+        canto (Target #1: sin showdown — cantar el 50% implica rango ancho → arregla el
+        over-fold del 26 ganador). Gradual (Beta + shrinkage): sin evidencia no cambia nada."""
         c = self.cfg_caza
         if not c.activar:
             return piso
         f = self.memoria.estimar_farol(self.rival_id, c)
         n = self.memoria.intentos(self.rival_id)
-        confianza = n / (n + c.n0_confianza)
-        descuento = round(c.k_piso * confianza * max(0.0, f - c.f_base))
-        return max(c.piso_min, piso - descuento)
+        desc_farol = c.k_piso * (n / (n + c.n0_confianza)) * max(0.0, f - c.f_base)
+        q = self.memoria.frecuencia_canto(self.rival_id, c)
+        nq = self.memoria.intentos_canto(self.rival_id)
+        desc_freq = c.k_piso * (nq / (nq + c.n0_confianza)) * max(0.0, q - c.f_base_canto)
+        return max(c.piso_min, piso - round(max(desc_farol, desc_freq)))
 
     def _debo_explorar(self, obs: EstadoObservable, eq: float) -> bool:
         """Mixing: pagar un envido DUDOSO (cerca del break-even) de vez en cuando para

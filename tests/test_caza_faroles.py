@@ -51,6 +51,22 @@ def test_activar_false_no_cambia_el_piso() -> None:
     assert ag_on._piso_ajustado_por_faroles(27) < 27  # con evidencia de farol, baja
 
 
+def test_frecuencia_de_canto_baja_el_piso_sin_showdown() -> None:
+    # Target #1: si el rival canta envido seguido (frecuencia alta), el piso baja AUNQUE
+    # nunca se haya destapado un farol (sin showdown) → el bot le empieza a pagar los 26.
+    cfg = ConfigCazaFaroles(activar=True)
+    mem = MemoriaFaroles(cantos={"spammer": (9, 10)})  # cantó en 9 de 10 rondas
+    ag = AgentePIMC(memoria=mem, config_caza=cfg, rival_id="spammer")
+    assert ag._piso_ajustado_por_faroles(27) < 27  # baja sin ningún farol destapado
+    # un rival que casi no canta (tight) no mueve el piso
+    ag2 = AgentePIMC(
+        memoria=MemoriaFaroles(cantos={"tight": (1, 10)}),
+        config_caza=cfg,
+        rival_id="tight",
+    )
+    assert ag2._piso_ajustado_por_faroles(27) == 27
+
+
 def _obs_mano_paso(mi_tanto: int) -> EstadoObservable:
     """Soy pie (j1); el rival (mano) lideró la baza 1 sin cantar el envido."""
     return EstadoObservable(
