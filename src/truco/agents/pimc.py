@@ -13,6 +13,7 @@ solo imagina manos cuyo tanto coincida. No entrena: es búsqueda + inferencia.
 
 from __future__ import annotations
 
+import itertools
 import random
 
 from truco.agents.base import Agent
@@ -32,8 +33,12 @@ _MAX_RECHAZOS = 25  # intentos para muestrear una mano que cumpla la restricció
 
 
 class AgentePIMC(Agent):
-    def __init__(self, muestras: int = 80, seed: int = 0) -> None:
+    """Enumera TODAS las manos posibles del rival (exacto) cuando son pocas; si son
+    demasiadas (miles), cae a muestreo Monte Carlo de ``muestras`` manos."""
+
+    def __init__(self, muestras: int = 80, seed: int = 0, tope_enumerar: int = 200) -> None:
         self.k = muestras
+        self.tope = tope_enumerar
         self._rng = random.Random(seed)
 
     def actuar(self, obs: EstadoObservable, acciones: tuple[Accion, ...]) -> Accion:
@@ -56,24 +61,34 @@ class AgentePIMC(Agent):
     # --- Inferencia por muestreo ---------------------------------------------
 
     def _prob_gana_cartas(self, obs: EstadoObservable) -> float:
-        pozo = _pozo(obs)
-        ganadas = 0
-        for _ in range(self.k):
-            restante = self._muestrear_rival(obs, pozo)
-            if _simula_gana_yo(_estado_simulado(obs, restante)):
-                ganadas += 1
-        return ganadas / self.k
+        manos = self._candidatas(obs, self.tope)
+        if not manos:
+            return 0.5
+        ganadas = sum(1 for h in manos if _simula_gana_yo(_estado_simulado(obs, h)))
+        return ganadas / len(manos)
 
     def _prob_gana_envido(self, obs: EstadoObservable) -> float:
+        manos = self._candidatas(obs, self.tope)
+        if not manos:
+            return 0.5
+        jugadas = _rival_jugadas(obs)
+        ganadas = sum(1 for h in manos if _gano_envido(obs, tanto_envido(tuple(jugadas + h))))
+        return ganadas / len(manos)
+
+    def _candidatas(self, obs: EstadoObservable, tope: int) -> list[list[Carta]]:
+        """TODAS las manos ocultas posibles del rival, consistentes con lo mostrado y
+        con el tanto cantado. Si superan ``tope``, cae a un muestreo de ``self.k``."""
         pozo = _pozo(obs)
         jugadas = _rival_jugadas(obs)
-        ganadas = 0
-        for _ in range(self.k):
-            restante = self._muestrear_rival(obs, pozo)
-            tanto = tanto_envido(tuple(jugadas + restante))
-            if obs.mi_tanto > tanto or (obs.mi_tanto == tanto and obs.soy_mano):
-                ganadas += 1
-        return ganadas / self.k
+        faltan = min(obs.cartas_rival, len(pozo))
+        consistentes: list[list[Carta]] = []
+        for combo in itertools.combinations(pozo, faltan):
+            mano = list(combo)
+            if obs.tanto_rival is None or tanto_envido(tuple(jugadas + mano)) == obs.tanto_rival:
+                consistentes.append(mano)
+                if len(consistentes) > tope:
+                    return [self._muestrear_rival(obs, pozo) for _ in range(self.k)]
+        return consistentes
 
     def _muestrear_rival(self, obs: EstadoObservable, pozo: list[Carta]) -> list[Carta]:
         """Muestrea las cartas ocultas del rival, respetando el tanto cantado."""
@@ -89,6 +104,11 @@ class AgentePIMC(Agent):
 
 
 # --- Helpers puros -----------------------------------------------------------
+
+
+def _gano_envido(obs: EstadoObservable, tanto_rival: int) -> bool:
+    """¿Gano el envido con mi tanto contra el del rival? (empate → gana el mano)."""
+    return obs.mi_tanto > tanto_rival or (obs.mi_tanto == tanto_rival and obs.soy_mano)
 
 
 def _min_que_gana(cartas: list[Carta], rival: Carta | None) -> Accion:

@@ -44,6 +44,24 @@ def test_reparto_tres_cartas_disjuntas() -> None:
     assert set(m0).isdisjoint(set(m1))
 
 
+def test_reparto_es_uniforme_y_sin_reposicion() -> None:
+    # El "que da" reparte de 40, va restando y nunca repite (sin reposición),
+    # y cada carta sale con la misma probabilidad (uniforme).
+    import random
+    from collections import Counter
+
+    cuenta: Counter[Carta] = Counter()
+    rng = random.Random(0)
+    n = 15_000
+    for _ in range(n):
+        m0, m1 = nueva_ronda(seed=rng.randrange(2**31)).manos
+        assert len(set(m0) | set(m1)) == 6  # 6 cartas distintas: sin reposición
+        cuenta.update(m0)
+    assert len(cuenta) == 40  # cualquiera de las 40 puede tocar
+    for veces in cuenta.values():
+        assert 0.06 < veces / n < 0.09  # ~7.5% cada una: sin sesgo
+
+
 # --- Mecánica ----------------------------------------------------------------
 
 
