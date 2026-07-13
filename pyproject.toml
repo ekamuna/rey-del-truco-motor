@@ -4,11 +4,16 @@ version = "0.1.0"
 description = "Motor de truco argentino 1v1 con IA — juego + aprendizaje de ML por fases"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "numpy>=2.4.6",
+    "torch>=2.13.0",
+]
 
 [project.scripts]
 truco = "truco.ui.cli:cli"
 truco-entrenar = "truco.rl.entrenar:main"
+truco-entrenar-red = "truco.rl.entrenar_red:main"
+truco-panel = "truco.rl.panel:main"
 
 [dependency-groups]
 dev = [
@@ -39,6 +44,10 @@ src = ["src", "tests"]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 strict = true
 files = ["src", "tests"]
+
+[[tool.mypy.overrides]]
+module = ["torch", "torch.*", "numpy", "numpy.*"]
+ignore_missing_imports = true

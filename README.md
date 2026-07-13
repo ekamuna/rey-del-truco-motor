@@ -33,15 +33,19 @@ Python 3.11+ · pytest · mypy · (fase ML) PyTorch + Gymnasium · CLI con rich/
 
 ## Estado
 
-🛠️ **En construcción** — M0–M5 ✅ + **PerfilDelRival** ✅ + **faroleo** ✅ + **M6 (RL, Q-learning tabular)** ✅. Motor completo, CLI clara, bot de reglas (~91% vs azar), **opponent modeling** (el bot te lee y arma tu fama por usuario), **faroleo**, y un **agente que aprende su estrategia solo** por refuerzo (**96% vs azar** tras entrenar; el "modelo" es una tabla legible). Próximo: refinar el RL (self-play estable / red neuronal).
+🛠️ **En construcción** — recorrido completo *de `if/else` a deep learning*: motor testeado → bot de reglas → **opponent modeling** (te lee) → **faroleo** (te miente) → **RL Q-tabular** (aprende las apuestas) → **red neuronal / deep RL** (aprende TODO, incluida la carta). Todos se enchufan a la misma interfaz `Agent`.
+
+**Resultado honesto del panel** (winrate vs estilos agresivo/mentiroso/conservador): el **bot de reglas sigue siendo el mejor** (~61% prom); la **red neuronal** quedó a la par del Q-tabular (~56%) y es la mejor contra rivales conservadores, pero el deep RL ingenuo **no supera** a las reglas escritas a mano. *(Lección real: sofisticación ≠ superioridad; para info imperfecta el techo es CFR, no una red pelada.)*
 
 ### Cómo correr
 ```bash
-uv sync                          # crea el entorno (Python 3.12 + deps)
+uv sync                          # entorno (Python 3.12 + torch)
 uv run truco                     # jugá vs el bot de reglas (con perfil + faroleo)
 uv run truco --usuario emmanuel  # con tu perfil: el bot te va conociendo
-uv run truco --rival q           # jugá vs la IA entrenada por refuerzo
-uv run truco-entrenar            # entrená el agente Q y mirá subir la curva
-uv run pytest                    # tests
-uv run ruff check . && uv run mypy   # linter + type-checker
+uv run truco --rival q           # vs el agente Q tabular (RL)
+uv run truco --rival red         # vs la red neuronal (deep RL)
+uv run truco-panel               # examen: ¿quién le gana a quién? (tabla de estilos)
+uv run truco-entrenar            # entrená el Q tabular
+uv run truco-entrenar-red        # entrená la red neuronal
+uv run pytest && uv run ruff check . && uv run mypy
 ```

@@ -26,6 +26,7 @@ from truco.game_loop import jugar_ronda
 from truco.perfil import Faceta, PerfilDelRival
 from truco.perfil.almacen import AlmacenDePerfiles
 from truco.rl.agente_q import AgenteQ
+from truco.rl.agente_red import AgenteRed
 from truco.rl.qtable import QTable
 from truco.ui.humano import AgenteHumano
 from truco.ui.narrador import (
@@ -94,11 +95,17 @@ def _crear_maquina(
     modelo: str,
     escribir: Callable[[str], None],
 ) -> Agent:
-    """Elige el oponente: el bot de reglas (con perfil + faroleo) o la IA entrenada."""
+    """Elige el oponente: el bot de reglas, el Q tabular o la red neuronal."""
+    if rival == "red":
+        ruta = Path("modelos/red.pt")
+        if ruta.exists():
+            escribir("Rival: red neuronal (deep RL). 🧠")
+            return AgenteRed.cargar(ruta)
+        escribir(f"(No encontré {ruta}; entrenala con 'uv run truco-entrenar-red'.)")
     if rival == "q":
         ruta = Path(modelo)
         if ruta.exists():
-            escribir("Rival: IA entrenada por refuerzo (RL). 🤖")
+            escribir("Rival: agente Q tabular (RL). 🤖")
             return AgenteQ(QTable.cargar(ruta))
         escribir(f"(No encontré el modelo {ruta}; entrenalo con 'uv run truco-entrenar'.)")
     # La máquina de reglas farolea (miente a veces): más seguido si te lee miedoso.
@@ -133,8 +140,8 @@ def cli() -> None:
     parser.add_argument(
         "--rival",
         default="reglas",
-        choices=["reglas", "q"],
-        help="reglas (default) o q (IA entrenada)",
+        choices=["reglas", "q", "red"],
+        help="reglas (default), q (Q tabular) o red (red neuronal)",
     )
     parser.add_argument("--modelo", default="modelos/qtable.json", help="ruta del modelo (rival q)")
     args = parser.parse_args()
