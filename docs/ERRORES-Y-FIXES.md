@@ -82,3 +82,22 @@
 
 ## Protocolo (docs/NORTE.md)
 Cada fix: commit revertible, TDD + ruff + mypy, y **medir contra el panel completo** (winrate + dif. de puntos, partidos no manos) para confirmar que no rompe nada. Rivales de test: `farolero_envido_real` (FIX B), y un rival que quiera trucos para castigar los farols del bot (FIX A).
+
+---
+
+## FIX F — Quiero de truco consciente del marcador (muerte súbita)
+
+**Corroborado jugando 3 partidos derecho (seeds 33/42/99, harness `scratchpad/jugar_normal.py`; ground-truth `scratchpad/analizar_normal.py`). Récord humano 2 – bot 1.**
+
+**El leak (g1 ronda 11 sutil, g2 ronda 13 clarísimo):** el quiero de truco usaba el break-even de puntos PURO (0.25) e ignoraba el marcador. Yendo **14-13**, con una mano SIN fuertes (12,12,6 → máx f6, ~25%), el bot quiso mi truco porque `0.25 ≥ 0.25` y **me regaló el partido**. Foldeando quedaba 14-14 (~50%).
+
+**El arreglo (`pimc.py::_umbral_querer_truco_ev`, análoga a FIX E):** cerca del final el punto no es lineal. Si perder el quiero le da el PARTIDO al rival (`opp + V ≥ objetivo`) pero foldear lo mantiene vivo (`opp + Pnq < objetivo`) **y no va atrás**, el quiero es *muerte súbita* → exige ser **favorito (0.5)**, no el break-even. Si foldear también pierde, o si va atrás, break-even normal (pelea, necesita la varianza).
+
+- Panel A/B **NEUTRO** (75.2% → 75.3%, seeds 11/22/33 × 120): sólo cambia la zona de muerte súbita, rara en el panel, pero evita regalar partidos ganados.
+- TDD (`test_umbral_querer_truco_sube_a_favorito_en_muerte_subita`), 158 tests, mypy strict. Commit `84a7779`.
+
+**Partido 3: el bot jugó impecable, cero errores nuevos.** Nunca faroleó (aperturas con 2-3 fuertes reales), foldeó trucos perdidos, cantó de valor en la baza decisiva con cartas fuertes, envido agresivo+correcto, y **endgame perfecto (a 14-11 abrió truco con dos 3 y cerró el partido)** — justo lo que FIX F protege del lado contrario. Ganó por suerte de cartas (tres 3, tres fuertes, el macho), no por leaks.
+
+**Verdad suerte/skill (los 3 partidos):** casi todos los puntos se definieron por las CARTAS repartidas (yo gané con macho/hembra/bravas; el bot ganó con sus monstruos). Las decisiones del bot fueron sanas salvo el quiero score-blind, ya corregido.
+
+**Siguen pendientes:** FIX C (ofensiva de envido conservadora — no cantar 23-24 de mano) y el SANDBAG/trampa (leer que el rival que concede la 1ª y canta la 2ª guardó cartas buenas).
