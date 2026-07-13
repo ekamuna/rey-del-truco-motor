@@ -20,16 +20,28 @@ from truco.agents.base import Agent
 from truco.core.acciones import Accion, TipoAccion, jugar_carta
 from truco.core.cards import Carta, baraja, fuerza_truco
 from truco.core.engine import acciones_legales, actor, aplicar
-from truco.core.scoring import tanto_envido
+from truco.core.scoring import (
+    tanto_envido,
+    valor_envido_no_querido,
+    valor_envido_querido,
+    valor_falta_envido,
+)
 from truco.core.state import EstadoObservable, EstadoRonda, ResultadoBaza
 
 _TODAS = baraja()
 
 # Umbrales de decisión (probabilidad de ganar estimada por muestreo).
-_QUERER_ENVIDO = 0.50  # aceptar envido si gano al menos la mitad de las veces
 _QUERER_TRUCO = 0.34  # aceptar truco salvo que sea claramente perdido (irse cuesta 1)
 _CANTAR = 0.55  # cantar solo con ventaja
 _MAX_RECHAZOS = 25  # intentos para muestrear una mano que cumpla la restricción
+
+# Efecto de SELECCIÓN del envido: si el rival CANTA envido, es porque tiene puntos.
+# Al responder, sólo imaginamos manos del rival con tanto >= este piso (escalado
+# según cante envido / real / falta). Sin esto el PIMC estima con prior uniforme,
+# sobreestima su equity y PAGA envidos que debería no querer (fuga medida: -0.135/ronda).
+_TANTO_RIVAL_CANTA = 27  # piso base: tanto mínimo asumido cuando el rival canta envido
+# (calibrado en el panel: 27 maximiza el promedio; coincide con el percentil ~82 del tanto,
+#  el rango donde un rival "canta con puntos". Ver docs/NORTE.md T1 y el análisis de equity.)
 
 
 class AgentePIMC(Agent):
@@ -43,20 +55,20 @@ class AgentePIMC(Agent):
         tope_enumerar: int = 200,
         umbral_cantar: float = _CANTAR,
         umbral_querer_truco: float = _QUERER_TRUCO,
-        umbral_querer_envido: float = _QUERER_ENVIDO,
+        tanto_rival_canta_envido: int = _TANTO_RIVAL_CANTA,
     ) -> None:
         self.k = muestras
         self.tope = tope_enumerar
         self.umbral_cantar = umbral_cantar
         self.umbral_querer_truco = umbral_querer_truco
-        self.umbral_querer_envido = umbral_querer_envido
+        self.tanto_rival_canta_envido = tanto_rival_canta_envido
         self._rng = random.Random(seed)
 
     def actuar(self, obs: EstadoObservable, acciones: tuple[Accion, ...]) -> Accion:
         tipos = {a.tipo for a in acciones}
         if obs.pendiente is not None and TipoAccion.QUIERO in tipos:
             if obs.pendiente.categoria == "envido":
-                gana = self._prob_gana_envido(obs) >= self.umbral_querer_envido
+                gana = self._prob_gana_envido(obs) >= self._umbral_querer_envido_ev(obs)
             else:
                 gana = self._prob_gana_cartas(obs) >= self.umbral_querer_truco
             return Accion(TipoAccion.QUIERO) if gana else Accion(TipoAccion.NO_QUIERO)
@@ -79,17 +91,51 @@ class AgentePIMC(Agent):
         return ganadas / len(manos)
 
     def _prob_gana_envido(self, obs: EstadoObservable) -> float:
-        manos = self._candidatas(obs, self.tope)
+        piso = self._piso_tanto_rival(obs)
+        manos = self._candidatas(obs, self.tope, piso)
+        if not manos and piso is not None:
+            manos = self._candidatas(obs, self.tope, None)  # piso incompatible con el reparto
         if not manos:
             return 0.5
         jugadas = _rival_jugadas(obs)
         ganadas = sum(1 for h in manos if _gano_envido(obs, tanto_envido(tuple(jugadas + h))))
         return ganadas / len(manos)
 
-    def _candidatas(self, obs: EstadoObservable, tope: int) -> list[list[Carta]]:
+    def _umbral_querer_envido_ev(self, obs: EstadoObservable) -> float:
+        """Umbral de equity para aceptar un envido: el **break-even EV del pote**.
+        Aceptar un pote V (ganás/perdés V) frente a un 'no quiero' que regala Pnq se
+        justifica si eq > 0.5 − Pnq/(2V). Envido simple → 0.25, real → ~0.30, falta → ~0.47.
+        Mucho más fino que un umbral fijo: exige más equity cuanto más grande el pote."""
+        neg = obs.pendiente
+        assert neg is not None
+        valor_falta = valor_falta_envido(obs.puntos_partida, obs.objetivo)
+        pote = valor_envido_querido(neg.cantos, valor_falta)
+        no_quiero = valor_envido_no_querido(neg.cantos)
+        return 0.5 - no_quiero / (2 * pote)
+
+    def _piso_tanto_rival(self, obs: EstadoObservable) -> int | None:
+        """Si estoy respondiendo un envido del rival, su tanto mínimo asumido (canta con
+        puntos), escalado según envido / envido-envido / real / falta. None si no aplica."""
+        neg = obs.pendiente
+        if neg is None or neg.categoria != "envido":
+            return None
+        base = self.tanto_rival_canta_envido
+        if TipoAccion.FALTA_ENVIDO in neg.cantos:
+            piso = base + 4
+        elif TipoAccion.REAL_ENVIDO in neg.cantos:
+            piso = base + 3
+        elif neg.cantos.count(TipoAccion.ENVIDO) >= 2:  # envido-envido (revirado)
+            piso = base + 2
+        else:
+            piso = base
+        return min(piso, 33)
+
+    def _candidatas(
+        self, obs: EstadoObservable, tope: int, piso_tanto: int | None = None
+    ) -> list[list[Carta]]:
         """TODAS las manos ocultas posibles del rival, consistentes con: lo mostrado,
-        el tanto cantado, y con QUÉ carta me mató (asumiendo que juega la mínima que
-        gana). Si superan ``tope``, cae a un muestreo de ``self.k``."""
+        el tanto cantado, con QUÉ carta me mató, y (si respondo un envido) con que su
+        tanto sea >= ``piso_tanto``. Si superan ``tope``, cae a un muestreo de ``self.k``."""
         pozo = _pozo(obs)
         jugadas = _rival_jugadas(obs)
         faltan = min(obs.cartas_rival, len(pozo))
@@ -97,10 +143,15 @@ class AgentePIMC(Agent):
         consistentes: list[list[Carta]] = []
         for combo in itertools.combinations(pozo, faltan):
             mano = list(combo)
-            if _consistente(obs, mano, jugadas, intervalos):
+            if _consistente(obs, mano, jugadas, intervalos) and _cumple_piso(
+                jugadas, mano, piso_tanto
+            ):
                 consistentes.append(mano)
                 if len(consistentes) > tope:
-                    return [self._muestrear_rival(obs, pozo, intervalos) for _ in range(self.k)]
+                    return [
+                        self._muestrear_rival(obs, pozo, intervalos, piso_tanto)
+                        for _ in range(self.k)
+                    ]
         return consistentes
 
     def _muestrear_rival(
@@ -108,15 +159,18 @@ class AgentePIMC(Agent):
         obs: EstadoObservable,
         pozo: list[Carta],
         intervalos: list[tuple[int, int]] | None = None,
+        piso_tanto: int | None = None,
     ) -> list[Carta]:
-        """Muestrea las cartas ocultas del rival (tanto cantado + con qué me mató)."""
+        """Muestrea las cartas ocultas del rival (tanto cantado + con qué me mató + piso)."""
         if intervalos is None:
             intervalos = _intervalos_prohibidos(obs)
         jugadas = _rival_jugadas(obs)
         faltan = min(obs.cartas_rival, len(pozo))
         for _ in range(_MAX_RECHAZOS):
             restante = self._rng.sample(pozo, faltan)
-            if _consistente(obs, restante, jugadas, intervalos):
+            if _consistente(obs, restante, jugadas, intervalos) and _cumple_piso(
+                jugadas, restante, piso_tanto
+            ):
                 return restante
         return self._rng.sample(pozo, faltan)  # si no encontró, muestra libre
 
@@ -152,6 +206,13 @@ def _consistente(
     if obs.tanto_rival is not None and tanto_envido(tuple(jugadas + mano)) != obs.tanto_rival:
         return False
     return not any(lo < fuerza_truco(c) < hi for c in mano for lo, hi in intervalos)
+
+
+def _cumple_piso(jugadas: list[Carta], mano: list[Carta], piso_tanto: int | None) -> bool:
+    """¿La mano imaginada da al menos ``piso_tanto`` de envido? (None = sin restricción)."""
+    if piso_tanto is None:
+        return True
+    return tanto_envido(tuple(jugadas + mano)) >= piso_tanto
 
 
 def _gano_envido(obs: EstadoObservable, tanto_rival: int) -> bool:

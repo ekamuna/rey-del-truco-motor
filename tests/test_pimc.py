@@ -4,12 +4,37 @@ from dataclasses import replace
 
 from truco.agents.aleatorio import AgenteAleatorio
 from truco.agents.pimc import AgentePIMC, _consistente, _intervalos_prohibidos, _pozo
-from truco.core.acciones import TipoAccion, canto
+from truco.core.acciones import Accion, TipoAccion, canto
 from truco.core.cards import Carta, Palo
 from truco.core.engine import aplicar, iniciar, nueva_ronda, observacion_de
-from truco.core.state import EstadoObservable, ResultadoBaza
+from truco.core.state import EstadoObservable, Negociacion, ResultadoBaza
 from truco.evaluacion import enfrentar
 from truco.game_loop import jugar_ronda
+
+
+def _obs_respondiendo_envido(mi_mano: tuple[Carta, ...], mi_tanto: int) -> EstadoObservable:
+    """Soy pie (jugador 1); el rival (mano) me cantó ENVIDO y debo responder."""
+    return EstadoObservable(
+        jugador=1,
+        mi_mano=mi_mano,
+        mano=0,
+        turno=0,
+        mesa=(None, None),
+        bazas=(),
+        cartas_rival=3,
+        pendiente=Negociacion(categoria="envido", cantos=(TipoAccion.ENVIDO,), a_responder=1),
+        nivel_truco=0,
+        truco_querido=False,
+        envido_resuelto=False,
+        puntos_partida=(0, 0),
+        objetivo=15,
+        terminada=False,
+        ganador=None,
+        puntos_ronda=(0, 0),
+        mi_tanto=mi_tanto,
+        tanto_rival=None,
+    )
+
 
 MANO_28 = (Carta(5, Palo.ORO), Carta(3, Palo.ORO), Carta(1, Palo.COPA))  # tanto 28
 MANO_27 = (Carta(7, Palo.COPA), Carta(11, Palo.COPA), Carta(10, Palo.ORO))  # tanto 27
@@ -104,3 +129,29 @@ def test_deduccion_con_que_me_mato() -> None:
     assert not _consistente(obs, [Carta(2, Palo.ORO), Carta(4, Palo.COPA)], [], intervalos)
     # una mano con cartas flojas (fuerza < 6) sí es posible
     assert _consistente(obs, [Carta(5, Palo.ORO), Carta(4, Palo.COPA)], [], intervalos)
+
+
+def test_umbral_aceptar_envido_es_break_even_del_pote() -> None:
+    # Un envido simple querido vale 2; el 'no quiero' regala 1 → break-even eq = 0.25.
+    obs = _obs_respondiendo_envido((Carta(4, Palo.ORO),), mi_tanto=20)
+    assert abs(AgentePIMC()._umbral_querer_envido_ev(obs) - 0.25) < 1e-9
+
+
+def test_piso_selecciona_manos_altas_del_rival() -> None:
+    # Al responder un envido, el rival cantó → sólo imagino manos suyas con tanto alto.
+    obs = _obs_respondiendo_envido((Carta(3, Palo.ORO),), mi_tanto=24)
+    ag = AgentePIMC(seed=0, tanto_rival_canta_envido=26)
+    assert ag._piso_tanto_rival(obs) == 26  # envido simple → piso base
+
+
+def test_no_pago_envido_flojo_pero_si_uno_fuerte() -> None:
+    # De pie, el rival (mano) me canta envido. Con 24 debo NO querer (asumo que tiene
+    # puntos: canta con >=26); con 31 debo querer.
+    ag = AgentePIMC(seed=0, tanto_rival_canta_envido=26)
+    m_flojo = (Carta(3, Palo.ORO), Carta(1, Palo.ORO), Carta(12, Palo.BASTO))  # tanto 24
+    m_fuerte = (Carta(7, Palo.ORO), Carta(4, Palo.ORO), Carta(12, Palo.BASTO))  # tanto 31
+    flojo = _obs_respondiendo_envido(m_flojo, 24)
+    fuerte = _obs_respondiendo_envido(m_fuerte, 31)
+    acciones = (Accion(TipoAccion.QUIERO), Accion(TipoAccion.NO_QUIERO))
+    assert ag.actuar(flojo, acciones).tipo is TipoAccion.NO_QUIERO
+    assert ag.actuar(fuerte, acciones).tipo is TipoAccion.QUIERO

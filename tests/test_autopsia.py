@@ -11,7 +11,8 @@ def test_recolectar_solo_devuelve_derrotas() -> None:
         lambda: AgentePIMC(muestras=20), lambda: AgenteAleatorio(2), partidas=20, seed=1
     )
     assert all(p.ganador != 0 for p in derrotas)
-    assert all(p.puntos[1] > p.puntos[0] for p in derrotas)
+    # una derrota del bot (j0) tiene j0 <= j1 (el empate a 15 se cuenta como derrota).
+    assert all(p.puntos[0] <= p.puntos[1] for p in derrotas)
 
 
 def test_render_partido_es_legible() -> None:
