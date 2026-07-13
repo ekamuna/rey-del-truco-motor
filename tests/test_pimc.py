@@ -180,6 +180,27 @@ def test_gana_en_baza2_no_emparda() -> None:
     assert accion.carta == Carta(1, Palo.BASTO)
 
 
+def test_revira_el_envido_con_tanto_muy_fuerte() -> None:
+    # Al aceptar un envido con un monstruo, el PIMC ESCALA para inflar el pozo.
+    ag = AgentePIMC(seed=0)
+    todos = {
+        TipoAccion.QUIERO,
+        TipoAccion.NO_QUIERO,
+        TipoAccion.ENVIDO,
+        TipoAccion.REAL_ENVIDO,
+        TipoAccion.FALTA_ENVIDO,
+    }
+    una = (Carta(4, Palo.ORO),)
+
+    def escala(tanto: int) -> TipoAccion:
+        return ag._escalar_o_querer(_obs_respondiendo_envido(una, tanto), todos).tipo
+
+    assert escala(33) is TipoAccion.FALTA_ENVIDO
+    assert escala(30) is TipoAccion.REAL_ENVIDO
+    assert escala(28) is TipoAccion.ENVIDO  # envido-envido (revira)
+    assert escala(27) is TipoAccion.QUIERO
+
+
 def test_umbral_aceptar_envido_es_break_even_del_pote() -> None:
     # Un envido simple querido vale 2; el 'no quiero' regala 1 → break-even eq = 0.25.
     obs = _obs_respondiendo_envido((Carta(4, Palo.ORO),), mi_tanto=20)

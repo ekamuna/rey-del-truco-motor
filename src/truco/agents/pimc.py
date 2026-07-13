@@ -68,9 +68,10 @@ class AgentePIMC(Agent):
         tipos = {a.tipo for a in acciones}
         if obs.pendiente is not None and TipoAccion.QUIERO in tipos:
             if obs.pendiente.categoria == "envido":
-                gana = self._prob_gana_envido(obs) >= self._umbral_querer_envido_ev(obs)
-            else:
-                gana = self._prob_gana_cartas(obs) >= self.umbral_querer_truco
+                if self._prob_gana_envido(obs) >= self._umbral_querer_envido_ev(obs):
+                    return self._escalar_o_querer(obs, tipos)  # revira si tengo un monstruo
+                return Accion(TipoAccion.NO_QUIERO)
+            gana = self._prob_gana_cartas(obs) >= self.umbral_querer_truco
             return Accion(TipoAccion.QUIERO) if gana else Accion(TipoAccion.NO_QUIERO)
 
         if TipoAccion.ENVIDO in tipos and self._prob_gana_envido(obs) >= self.umbral_cantar:
@@ -123,6 +124,19 @@ class AgentePIMC(Agent):
         jugadas = _rival_jugadas(obs)
         ganadas = sum(1 for h in manos if _gano_envido(obs, tanto_envido(tuple(jugadas + h))))
         return ganadas / len(manos)
+
+    def _escalar_o_querer(self, obs: EstadoObservable, tipos: set[TipoAccion]) -> Accion:
+        """Ya decidí querer el envido; si tengo un tanto muy fuerte, REVIRO/escalo para
+        inflar el pozo (control de varianza: la falta sólo con 32-33, donde una falta
+        querida casi no se pierde; real con 30-31; revira con 28-29). Ver análisis de equity."""
+        t = obs.mi_tanto
+        if t >= 32 and TipoAccion.FALTA_ENVIDO in tipos:
+            return Accion(TipoAccion.FALTA_ENVIDO)
+        if t >= 30 and TipoAccion.REAL_ENVIDO in tipos:
+            return Accion(TipoAccion.REAL_ENVIDO)
+        if t >= 28 and TipoAccion.ENVIDO in tipos:
+            return Accion(TipoAccion.ENVIDO)  # envido-envido (revira)
+        return Accion(TipoAccion.QUIERO)
 
     def _umbral_querer_envido_ev(self, obs: EstadoObservable) -> float:
         """Umbral de equity para aceptar un envido: el **break-even EV del pote**.
