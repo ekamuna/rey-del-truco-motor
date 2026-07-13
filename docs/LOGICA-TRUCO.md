@@ -81,3 +81,14 @@ que en el desempate post-parda regalaba manos ganadas — error R12 de la partid
 Medido winrate-neutral (A+B+D 75.2% vs A+B 75.0%, 120 part × seeds 11/22/33); corrige el
 bug sin costo (el panel lo subvalora: el spot es raro, contra humano importa). TDD:
 `test_lidera_mas_alta_en_baza_decisiva_tras_parda`. 155 tests.
+
+## Implementado (FIX E, 2026-07-13) — escalada de envido consciente del marcador
+`_escalar_o_querer`: si voy GANANDO y cerca del final (falta ≤ 5, o sea líder ≥ 10),
+canto FALTA ENVIDO en vez de real — la falta gana el partido y CAPA el riesgo. Antes
+escalaba por tanto solamente (30 → real envido), ciego al marcador: iba 13 con envido 30
+y cantaba REAL (arriesga 5) → si perdía, el rival en 10 llegaba a 15 y ganaba. Yendo ATRÁS
+sigue escalando normal (una real ganada da vuelta el partido; la falta ahí le daría el
+partido al rival). Catch del usuario en la partida seed 21 (R13). Winrate-neutral (A+B+D+E
+75.3% vs A+B+D 75.2%). TDD: `test_escalar_envido_usa_falta_cerca_del_final`. 156 tests.
+Nota relacionada: cuando el envido ya te lleva a 15, el partido está definido (no hace
+falta jugar el truco); el motor cierra bien al fin de la ronda.

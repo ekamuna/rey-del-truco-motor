@@ -201,6 +201,22 @@ def test_revira_el_envido_con_tanto_muy_fuerte() -> None:
     assert escala(27) is TipoAccion.QUIERO
 
 
+def test_escalar_envido_usa_falta_cerca_del_final() -> None:
+    # FIX E (consciente del marcador): yendo GANANDO cerca del final, cantar REAL ENVIDO
+    # arriesga 5 → si perdés le regalás el partido al rival. Hay que cantar FALTA (capa el
+    # riesgo y gana igual). Yendo ATRÁS, en cambio, escalar normal (una real ganada te da vuelta).
+    ag = AgentePIMC(seed=0)
+    todos = {TipoAccion.QUIERO, TipoAccion.NO_QUIERO, TipoAccion.ENVIDO,
+             TipoAccion.REAL_ENVIDO, TipoAccion.FALTA_ENVIDO}
+    base = _obs_respondiendo_envido((Carta(4, Palo.ORO),), 30)  # jugador 1, tanto 30
+    ganando = replace(base, puntos_partida=(10, 13))  # bot 13 va ganando; real (5) le da 15 al rival
+    assert ag._escalar_o_querer(ganando, todos).tipo is TipoAccion.FALTA_ENVIDO
+    atras = replace(base, puntos_partida=(13, 10))  # bot 10 va atrás → real normal (dar vuelta)
+    assert ag._escalar_o_querer(atras, todos).tipo is TipoAccion.REAL_ENVIDO
+    lejos = replace(base, puntos_partida=(2, 6))  # gana pero lejos: la falta es grande → real
+    assert ag._escalar_o_querer(lejos, todos).tipo is TipoAccion.REAL_ENVIDO
+
+
 def _obs_gane_primera(mi_mano: tuple[Carta, ...], cartas_rival: int) -> EstadoObservable:
     """Soy pie (jugador 1) y GANÉ la baza 1; me quedan ``mi_mano`` y el rival ``cartas_rival``.
     Estado típico para decidir si escalo un truco."""

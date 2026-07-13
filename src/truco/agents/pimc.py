@@ -179,10 +179,22 @@ class AgentePIMC(Agent):
         return ganadas / len(manos)
 
     def _escalar_o_querer(self, obs: EstadoObservable, tipos: set[TipoAccion]) -> Accion:
-        """Ya decidí querer el envido; si tengo un tanto muy fuerte, REVIRO/escalo para
-        inflar el pozo (control de varianza: la falta sólo con 32-33, donde una falta
-        querida casi no se pierde; real con 30-31; revira con 28-29). Ver análisis de equity."""
+        """Ya decidí querer el envido; con tanto fuerte REVIRO/escalo (falta 32-33, real
+        30-31, revira 28-29). CONSCIENTE DEL MARCADOR (regla del experto, FIX E): cerca
+        del final la FALTA envido es el máximo que importa y CAPA el riesgo. Si escalar a
+        real/envido-envido le daría al rival lo justo para GANAR el partido cuando pierdo
+        (opp + apuesta ≥ objetivo) y la FALTA no, canto FALTA (no le regalo el partido)."""
         t = obs.mi_tanto
+        if t < 28:
+            return Accion(TipoAccion.QUIERO)
+        yo = obs.jugador
+        mis_puntos, opp = obs.puntos_partida[yo], obs.puntos_partida[1 - yo]
+        valor_falta = valor_falta_envido(obs.puntos_partida, obs.objetivo)
+        # Si voy GANANDO y cerca del final (falta chica), la FALTA gana el partido y CAPA el
+        # riesgo: no regalar 5 (= el partido) si pierdo. Yendo atrás escalo normal (una real
+        # ganada me alcanza para dar vuelta; la falta ahí le daría el partido al rival).
+        if TipoAccion.FALTA_ENVIDO in tipos and mis_puntos > opp and valor_falta <= 5:
+            return Accion(TipoAccion.FALTA_ENVIDO)
         if t >= 32 and TipoAccion.FALTA_ENVIDO in tipos:
             return Accion(TipoAccion.FALTA_ENVIDO)
         if t >= 30 and TipoAccion.REAL_ENVIDO in tipos:
