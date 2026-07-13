@@ -18,6 +18,12 @@ from truco.agents.aleatorio import AgenteAleatorio
 from truco.agents.base import Agent
 from truco.agents.estilos import agresivo, conservador, mentiroso
 from truco.agents.pimc import AgentePIMC
+from truco.agents.realistas import (
+    agresivo_real,
+    conservador_real,
+    estratega_real,
+    mentiroso_real,
+)
 from truco.agents.reglas import AgenteReglas
 from truco.partida import jugar_partida
 
@@ -25,13 +31,23 @@ FabricaAgente = Callable[[], Agent]
 
 
 def panel() -> dict[str, FabricaAgente]:
-    """El panel de rivales contra el que se mide todo. Se le suman los realistas."""
+    """Panel base (mecánico) — la vara CONGELADA para validar cada táctica."""
     return {
         "azar": lambda: AgenteAleatorio(seed=7),
         "reglas": lambda: AgenteReglas(),
         "conservador": lambda: conservador(7),
         "agresivo": lambda: agresivo(7),
         "mentiroso": lambda: mentiroso(7),
+    }
+
+
+def panel_realista() -> dict[str, FabricaAgente]:
+    """Panel realista (el examen de verdad): rivales con lógica de decisión propia."""
+    return {
+        "conserv_r": lambda: conservador_real(7),
+        "agresivo_r": lambda: agresivo_real(7),
+        "mentiroso_r": lambda: mentiroso_real(7),
+        "estratega_r": lambda: estratega_real(7),
     }
 
 
@@ -53,8 +69,14 @@ def medir(bot: FabricaAgente, rival: FabricaAgente, partidas: int, seed: int) ->
     return Resultado(wins / partidas, dif / partidas)
 
 
-def scoreboard(bot: FabricaAgente, partidas: int = 300, seed: int = 11) -> dict[str, Resultado]:
-    return {nombre: medir(bot, rival, partidas, seed) for nombre, rival in panel().items()}
+def scoreboard(
+    bot: FabricaAgente,
+    partidas: int = 300,
+    seed: int = 11,
+    rivales: dict[str, FabricaAgente] | None = None,
+) -> dict[str, Resultado]:
+    rivales = rivales if rivales is not None else panel()
+    return {nombre: medir(bot, rival, partidas, seed) for nombre, rival in rivales.items()}
 
 
 def promedio(resultados: dict[str, Resultado]) -> float:
@@ -76,5 +98,10 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Scoreboard del bot vs el panel")
     parser.add_argument("--partidas", type=int, default=300)
     parser.add_argument("--seed", type=int, default=11)
+    parser.add_argument("--realista", action="store_true", help="usar el panel realista")
     args = parser.parse_args()
-    imprimir(scoreboard(lambda: AgentePIMC(), partidas=args.partidas, seed=args.seed))
+    rivales = panel_realista() if args.realista else panel()
+    resultados = scoreboard(
+        lambda: AgentePIMC(), partidas=args.partidas, seed=args.seed, rivales=rivales
+    )
+    imprimir(resultados)
