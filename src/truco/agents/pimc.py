@@ -16,6 +16,7 @@ from __future__ import annotations
 import itertools
 import random
 
+from truco.agents._senales import rival_paso_envido
 from truco.agents.base import Agent
 from truco.agents.memoria_faroles import ConfigCazaFaroles, MemoriaFaroles
 from truco.core.acciones import Accion, TipoAccion, jugar_carta
@@ -92,6 +93,8 @@ class AgentePIMC(Agent):
                 return self._escalar_o_querer_truco(obs, tipos, prob)
             return Accion(TipoAccion.NO_QUIERO)
 
+        if TipoAccion.ENVIDO in tipos and self._value_cant_mano_paso(obs):
+            return Accion(TipoAccion.ENVIDO)  # Regla 1: el mano pasó → está flojo, le cobro
         if TipoAccion.ENVIDO in tipos and self._prob_gana_envido(obs) >= self.umbral_cantar:
             return Accion(TipoAccion.ENVIDO)
         if TipoAccion.TRUCO in tipos and self._prob_gana_cartas(obs) >= self.umbral_cantar:
@@ -252,6 +255,20 @@ class AgentePIMC(Agent):
         n = self.memoria.intentos(self.rival_id)
         p_efectiva = c.p_mixing * (1.0 - n / (n + c.n0_confianza))  # explora menos al saber
         return self._rng_mix.random() < p_efectiva
+
+    def _value_cant_mano_paso(self, obs: EstadoObservable) -> bool:
+        """Regla 1 (docs/MODELADO-DEL-RIVAL.md): si el rival (mano) jugó una carta SIN
+        cantar el envido, casi siempre está flojo → cantale de VALOR (no es farol). Umbral
+        seguro 26 por defecto (aguanta a un pescador); si confirmé que NO pesca, bajo la
+        vara a 23 y exploto. Sólo con el modelado del rival activado."""
+        c = self.cfg_caza
+        if not c.activar or not rival_paso_envido(obs):
+            return False
+        n = self.memoria.intentos_pesca(self.rival_id)
+        f = self.memoria.estimar_pesca(self.rival_id, c)
+        confirmado_no_pescador = n >= c.n0_confianza and f <= c.f_base
+        umbral = c.value_cant_explota if confirmado_no_pescador else c.value_cant_default
+        return obs.mi_tanto >= umbral
 
     def _candidatas(
         self, obs: EstadoObservable, tope: int, piso_tanto: int | None = None

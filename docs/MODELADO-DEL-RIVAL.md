@@ -54,7 +54,10 @@ Con eso ajusta la Regla 1 por rival.
 ## Estado
 - [x] FAROLERO_ENVIDO: contador honesto + baja del piso + mixing (`memoria_faroles.py`).
       Medido: vs un farolero de envido, el bot pasa de 43% → 50% aprendiendo a cazarlo.
-- [ ] PESCADOR_ENVIDO: detección por showdown "mano no cantó + tenía puntos" + Regla 1
-      adaptativa (default 26, exploto si no-pescador).
-- [ ] Consolidar señales de `_senales.py` (`rival_paso_envido`) con el modelo.
-- [ ] Más facetas/escenarios a medida que aparezcan jugando.
+- [x] PESCADOR_ENVIDO + Regla 1: detección honesta ("mano no cantó y su tanto quedó
+      visible ≥26" — showdown de envido o 3 cartas jugadas) + value-cant adaptativo.
+      Medido: el bot **distingue** al pescador (tasa 37%) del honesto (7%); vs el honesto
+      explota (71.5%→73.5%), vs el pescador se queda seguro (76.5%→77.5%). Rival de test:
+      `pescador_real`. Todo OFF por defecto (panel idéntico).
+- [ ] Consolidar más señales de `_senales.py` con el modelo.
+- [ ] Más facetas/escenarios a medida que aparezcan jugando (truco: farol/pesca; etc).

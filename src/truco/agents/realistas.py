@@ -106,6 +106,26 @@ def farolero_envido_real(seed: int | None = None) -> AgenteFaroleroEnvido:
     )
 
 
+class AgentePescador(AgenteReglas):
+    """Buen jugador que PESCA: siendo mano con buen tanto (26+), NO canta el envido
+    para trampear al que le canta con poco (le acepta y le gana). Truco honesto."""
+
+    def _considerar_canto(self, obs: EstadoObservable, tipos: set[TipoAccion]) -> Accion | None:
+        honesto = super()._considerar_canto(obs, tipos)
+        pesca = honesto is not None and honesto.tipo in CANTOS_ENVIDO
+        if pesca and obs.soy_mano and obs.mi_tanto >= 26:
+            return None  # pesca: no canta teniendo, espera trampear
+        return honesto
+
+
+def pescador_real(seed: int | None = None) -> AgentePescador:
+    """Rival que pesca el envido (para medir la Regla 1 / detección del pescador)."""
+    return AgentePescador(
+        ConfigReglas(cantar_envido=27, querer_envido=23, cantar_truco_fuerza=10),
+        seed=seed,
+    )
+
+
 def conservador_real(seed: int | None = None) -> AgenteReglas:
     """Sólo apuesta con manos muy buenas; nunca farolea; foldea si duda."""
     return AgenteReglas(
