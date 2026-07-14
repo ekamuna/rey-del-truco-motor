@@ -191,8 +191,21 @@ rival tiene un ancho. El canal roza en contra en esas manos (el signo del Δ dep
 medido en el estudio). La banda blanda + fallback lo amortiguan; para afinarlo haría falta condicionar
 también por la ESTRUCTURA de cartas, no sólo el tanto.
 
-### Leak del bot que sigue abierto (visto en varios partidos jugando)
-El bot **quiere demasiado los cantos de truco del humano** con manos flojas (post-parda / sin fuerte):
-seed77 r1/r8/r10/r11, y los partidos previos. FIX F cubrió sólo la rodaja *score-aware* (muerte
-súbita). Falta el **modelado de truco**: trackear que los cantos de truco de este rival ganan al
-showdown → subir la vara de querer contra un canter tight. Es el próximo fix natural.
+### FIX H — modelado de truco (el leak, RESUELTO)
+El bot **quería demasiado los cantos de truco del humano** con manos flojas (seed77 r1/r8/r10/r11).
+Causa: `_prob_gana_cartas` imaginaba las manos del rival UNIFORMES, ignorando que el rival ELIGIÓ
+cantar. FIX H cierra el Canal 3 (modelo del rival) para el truco, en dos etapas:
+
+- **Etapa 1 (piso de estructura, commit `9625626`):** al RESPONDER un truco, cada mano imaginada del
+  rival se pondera por P(el rival cantaría con ella): 1.0 si tiene estructura (`_rival_tiene_estructura_truco`,
+  espejo de `_estructura_para_cantar_truco`), ε si no. Las manos flojas pesan ε → baja mi P(gano) →
+  foldeo los pagos flojos. Panel neutro (75.3→75.4).
+- **Etapa 2 (ε adaptativo, commit `a67901a`):** `MemoriaFaroles.truco_faroles` cuenta (Beta-Bernoulli)
+  los cantos de truco SIN estructura, aprendiendo SÓLO de rondas donde se vieron las 3 cartas del rival
+  (fidelidad, como el envido). `_epsilon_farol_truco` lleva ε del default a la tasa observada: rival
+  TIGHT → ε baja (foldeo más), FAROLERO → ε sube (le pago y le cazo el bluff). Panel realista caza-ON
+  74.4→**75.1** (+0.7), faroleros sanos.
+
+**Demostración del fix (mismo spot, el bot aprendió que soy tight):** respondiendo mi truco de apertura
+con "1 fuerte + media + basura", P(gano) uniforme (bot viejo) = **0.28 → QUERÍA** (el leak); ponderado
+(FIX H) = **0.09 → NO QUIERE**. El flip exacto que sangraba.
