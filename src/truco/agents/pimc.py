@@ -40,6 +40,14 @@ _TODAS = baraja()
 _CANTAR = 0.55  # cantar solo con ventaja
 _MAX_RECHAZOS = 25  # intentos para muestrear una mano que cumpla la restricción
 
+# PESCA vs rival desesperado (regla del experto): de MANO con un envido FUERTE, si el rival
+# va MUY lejos atrás (desesperado → va a cantar/farolear para recuperar), NO canto el envido:
+# juego la carta y lo dejo venir, para agarrarlo defendiendo un tanto real (no faroleo). De
+# pie siempre se canta. El truco no cambia. Conservador: sólo escondo puntos de verdad, con
+# colchón, donde regalar un envido cuesta poco. Ver docs/ERRORES-Y-FIXES.md.
+_BRECHA_DESESPERADO = 6  # ventaja (mis_puntos − opp) que hace al rival "muy lejos" atrás
+_TANTO_PESCA = 27  # envido mínimo para pescar (fuerte: gana también cuando el rival viene)
+
 # Truco = se gana con 2 bazas (teoría del experto, docs/LOGICA-TRUCO.md).
 _FUERTE = 8  # fuerza de una carta "ganadora" (2, 3 o brava): gana la mayoría de las bazas
 _P_ESCALAR = 0.10  # sólo escalo (retruco/vale4) si P(el rival me supere) < esto (>90% seguro)
@@ -113,7 +121,11 @@ class AgentePIMC(Agent):
 
         if TipoAccion.ENVIDO in tipos and self._value_cant_mano_paso(obs):
             return Accion(TipoAccion.ENVIDO)  # Regla 1: el mano pasó → está flojo, le cobro
-        if TipoAccion.ENVIDO in tipos and self._prob_gana_envido(obs) >= self.umbral_cantar:
+        if (
+            TipoAccion.ENVIDO in tipos
+            and self._prob_gana_envido(obs) >= self.umbral_cantar
+            and not self._pescar_de_mano(obs)  # rival muy lejos → escondo el envido de mano
+        ):
             return Accion(TipoAccion.ENVIDO)
         if (
             TipoAccion.TRUCO in tipos
@@ -249,6 +261,19 @@ class AgentePIMC(Agent):
         if señal == "nadie_canto" and obs.mano == 1 - obs.jugador:
             return None, umbral + _MARGEN_ENVIDO  # el mano que no canta está flojo
         return None, None
+
+    def _pescar_de_mano(self, obs: EstadoObservable) -> bool:
+        """PESCA (regla del experto): de MANO, con un envido FUERTE (≥ _TANTO_PESCA), contra un
+        rival MUY lejos atrás (le llevo ≥ _BRECHA_DESESPERADO), NO canto el envido — juego la
+        carta y lo dejo venir. El desesperado va a cantar/farolear para recuperar, y ahí lo
+        agarro defendiendo un tanto REAL (no faroleo). De pie hay que cantar (sin la iniciativa
+        no se pesca). El truco no cambia. Es conservador: con ese colchón, regalar el envido si
+        el rival no pica cuesta poco, y si pica lo agarro con puntos de verdad."""
+        if obs.mano != obs.jugador or obs.mi_tanto < _TANTO_PESCA:
+            return False
+        yo = obs.jugador
+        mis_puntos, opp = obs.puntos_partida[yo], obs.puntos_partida[1 - yo]
+        return mis_puntos - opp >= _BRECHA_DESESPERADO
 
     def _prob_gana_envido(self, obs: EstadoObservable) -> float:
         piso = self._piso_tanto_rival(obs)

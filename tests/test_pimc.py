@@ -5,8 +5,10 @@ from dataclasses import replace
 from truco.agents.aleatorio import AgenteAleatorio
 from truco.agents.memoria_faroles import ConfigCazaFaroles, MemoriaFaroles
 from truco.agents.pimc import (
+    _BRECHA_DESESPERADO,
     _EPS_FAROL_TRUCO,
     _MARGEN_ENVIDO,
+    _TANTO_PESCA,
     AgentePIMC,
     _consistente,
     _cumple_tanto,
@@ -15,7 +17,7 @@ from truco.agents.pimc import (
 )
 from truco.core.acciones import Accion, TipoAccion, canto
 from truco.core.cards import Carta, Palo
-from truco.core.engine import aplicar, iniciar, nueva_ronda, observacion_de
+from truco.core.engine import acciones_legales, aplicar, iniciar, nueva_ronda, observacion_de
 from truco.core.state import EstadoObservable, Negociacion, ResultadoBaza
 from truco.evaluacion import enfrentar
 from truco.game_loop import jugar_ronda
@@ -409,6 +411,33 @@ def test_umbral_querer_envido_es_score_aware() -> None:
     assert abs(umbral(13, 13) - 0.5) < 1e-9  # B: quiero-perder (V=2) lo lleva a 15, favorito
     assert abs(umbral(10, 13) - 0.25) < 1e-9  # B yendo atrás → varianza → break-even del pote
     assert abs(umbral(5, 6) - 0.25) < 1e-9  # C: lejos del final → break-even del pote
+
+
+def test_pescar_de_mano_vs_rival_desesperado() -> None:
+    """Regla del experto: de MANO con envido fuerte y el rival MUY lejos atrás, el bot pesca
+    (NO canta el envido, juega la carta para hacerlo venir). De pie / sin brecha / envido
+    flojo → no pesca. Mano (6b,7b,4o): envido 33, truco flojo (no confunde con cantar truco)."""
+    fuerte = (Carta(6, Palo.BASTO), Carta(7, Palo.BASTO), Carta(4, Palo.ORO))  # tanto 33
+    pie = (Carta(5, Palo.COPA), Carta(2, Palo.COPA), Carta(11, Palo.ESPADA))
+    ag = AgentePIMC(tope_enumerar=8000, seed=0)
+    e = iniciar(fuerte, pie, mano=0)  # soy mano (jugador 0)
+    acc = acciones_legales(e)
+    obs = observacion_de(e, 0)
+    assert obs.mi_tanto == 33
+
+    # Rival MUY lejos atrás (le llevo 8 ≥ brecha): pesco → juego la carta, no canto.
+    desesp = replace(obs, puntos_partida=(10, 2))
+    assert ag.actuar(desesp, acc).tipo is TipoAccion.JUGAR
+    # Marcador parejo: canto de valor como siempre.
+    parejo = replace(obs, puntos_partida=(5, 5))
+    assert ag.actuar(parejo, acc).tipo is TipoAccion.ENVIDO
+
+    # Unidad de _pescar_de_mano: mano+fuerte+brecha sí; de pie / sin brecha / flojo, no.
+    assert ag._pescar_de_mano(desesp)
+    assert not ag._pescar_de_mano(replace(desesp, mano=1))  # de pie no se pesca
+    assert not ag._pescar_de_mano(replace(desesp, puntos_partida=(2, 2)))  # sin brecha
+    assert not ag._pescar_de_mano(replace(desesp, mi_tanto=_TANTO_PESCA - 1))  # envido flojo
+    assert _BRECHA_DESESPERADO > 0
 
 
 def test_umbral_aceptar_envido_es_break_even_del_pote() -> None:
