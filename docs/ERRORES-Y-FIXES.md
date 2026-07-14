@@ -101,3 +101,26 @@ Cada fix: commit revertible, TDD + ruff + mypy, y **medir contra el panel comple
 **Verdad suerte/skill (los 3 partidos):** casi todos los puntos se definieron por las CARTAS repartidas (yo gané con macho/hembra/bravas; el bot ganó con sus monstruos). Las decisiones del bot fueron sanas salvo el quiero score-blind, ya corregido.
 
 **Siguen pendientes:** FIX C (ofensiva de envido conservadora — no cantar 23-24 de mano) y el SANDBAG/trampa (leer que el rival que concede la 1ª y canta la 2ª guardó cartas buenas).
+
+---
+
+## FIX I — Quiero desesperado consciente del marcador (envido + truco)
+
+**Espejo de FIX F.** Detectado jugando (yo iba 14, canté envido; el bot lo foldeó y me regaló el punto que me daba el partido). El usuario lo marcó: *"a 1 de perder tiene que decir quiero; no-quiero pierde igual"*.
+
+**El leak:** toda respuesta a un canto compara equity vs un umbral. Faltaba el **régimen A**: si NO querer ya le da el partido al rival (`opp + Pnq ≥ objetivo`), foldear es **derrota segura** → hay que querer con **cualquier** equity (umbral 0), no con el break-even 0.25. FIX F sólo cubría el régimen B (quiero-perder pierde pero foldear sobrevive → sólo de favorito). Y el **envido era 100% ciego al marcador** (ni A ni B).
+
+**El arreglo (`pimc.py::_umbral_querer_truco_ev` y `::_umbral_querer_envido_ev`):**
+```
+A. opp + Pnq ≥ objetivo   (foldear pierde)          → umbral 0   (quiero libre)
+B. opp + V   ≥ objetivo   (quiero-perder pierde,     → 0.5        (sólo de favorito)  ← FIX F
+   foldear sobrevive, no voy atrás)
+C. resto                                             → break-even del pote
+```
+Clave del envido: `V`/`Pnq` salen de `valor_envido_querido/no_querido`, así que ya incluyen la **falta = `max(1, objetivo − puntero)`**, que vale **<2 si el puntero va ≥14** y **<3 si va ≥13** (por eso frente a una falta cerca del final, querer-perder también entrega el partido → cae en B, no en A).
+
+- Estrictamente dominante: en el régimen A, querer nunca es peor que no-querer.
+- Panel A/B **NEUTRO** (75.3% vs 75.4%, seeds 11/22/33 × 120): el spot es raro pero de alto impacto (recupera partidos regalados en la muerte).
+- TDD: 2 tests nuevos (`test_umbral_querer_truco_desesperado_si_foldear_pierde`, `test_umbral_querer_envido_es_score_aware`) + corrige el assert del test de FIX F que encodeaba el bug. 164 tests, ruff + mypy strict OK. Commit `ef4b7bd`.
+
+**Pendiente relacionado (charlado, NO hecho — es modelado especulativo):** condicionar el modelo del rival por marcador (rival muy atrás → gamblea para recuperar → descontarle crédito a sus cantos). Se mide aparte, después, para no meterle agresión no verificada a un bot conservador.
