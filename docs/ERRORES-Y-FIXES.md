@@ -136,3 +136,17 @@ Hipótesis (intuición del usuario, jugando): "no cantar 23-24 de envido de mano
 3. **La versión ADAPTATIVA** (saltear el par medio SÓLO contra un rival confirmado caller, vía una señal nueva `MemoriaFaroles.envido_calls` = fracción de mis envidos que el rival paga; umbral calibrado empíricamente en 0.34: paga-24→call-rate 0.36, paga-25→0.31, normal-27→0.16) es **panel-neutro por construcción** (default = caza off = idéntico al bot base) y **no falso-dispara** vs normal. Pero el A/B contra un caller sintético (`AgenteReglas(querer_envido=23/24)`, `scratchpad/ab_caller.py`, N=500, memoria persistente) da **Δwin +0.0% a +0.8% (ruido)**, dif/part +0.05–0.09.
 
 **Conclusión:** cantar 23-24 de mano vs un caller es −EV *analíticamente* pero **NO mueve la aguja** — los cantos de envido de mano son infrecuentes y el edge por ocurrencia es chico (~0.1-0.3 pts). La pérdida observada jugando fue variance. No justifica agregar una señal aprendida + config + serialización. **Se revierte** (como los experimentos descartados en `docs/RESULTADOS-NOCHE.md`). El norte se sostiene: el bot ya canta 23-24 de mano, que es +valor contra la enorme mayoría de rivales (que foldean).
+
+---
+
+## Pesca de mano vs rival desesperado (regla del experto — SHIPPEADO, `093cce1`)
+
+La versión concreta y simple del "rival desesperado" que pidió el usuario (descartando el modelado pesado): **cuando el rival va MUY lejos atrás, va a estar desesperado y va a cantar/farolear para recuperar → el bot pesca más para agarrarlo, siempre conservador y cuidando los puntos.**
+
+**Pescar** (definición del usuario) = ser MANO, tener un envido BUENO, y NO cantarlo — jugás la carta sin cantar el envido, para trampear/hacer venir al rival. Sólo de mano (de pie siempre se canta). El truco no cambia.
+
+**Implementación (`pimc.py::_pescar_de_mano`, siempre activa):** de mano, con `mi_tanto ≥ _TANTO_PESCA` (27, fuerte: gana también cuando el rival viene) y `mis_puntos − opp ≥ _BRECHA_DESESPERADO` (6, "muy lejos"), el bot NO canta el envido aunque lo cantaría por valor → juega la carta. El desesperado canta (rango ancho) y el bot lo agarra **defendiendo un tanto real** (no faroleo). Conservador y consciente del marcador (como FIX F/I): con ese colchón, regalar el envido si el rival no pica cuesta poco.
+
+- Panel **NEUTRO** (75.1% vs 75.3%, seeds 11/22/33 × 120): los rivales mecánicos no se desesperan (no cantan más cuando van atrás), así que el panel no captura el +valor (es vs un rival que sí gamblea) — pero tampoco hay downside. A diferencia del FIX C blanket (que regresaba −0.5%), esto es una regla simple por marcador, sin señal aprendida.
+- TDD (`test_pescar_de_mano_vs_rival_desesperado`), ruff + mypy strict OK.
+- **Descartado del mismo hilo (medido/analizado):** el rival-desesperado "pesado" (construir un rival sintético que gamblea + condicionar el modelo del rival por marcador). El usuario lo simplificó a esta única regla de pesca. El truco y las respuestas NO cambian por desesperación: ahí el norte es ser conservador y cuidar los puntos.
