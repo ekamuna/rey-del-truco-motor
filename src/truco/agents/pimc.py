@@ -348,9 +348,12 @@ class AgentePIMC(Agent):
         objetivo) pero foldear me mantiene vivo (opp + Pnq < objetivo) y NO voy atrás,
         el quiero deja de ser un +EV de puntos y pasa a ser 'jugarme el partido en esta
         mano' (muerte súbita) → lo acepto sólo siendo favorito (0.5), no al break-even
-        0.25. Si foldear TAMBIÉN pierde el partido, es mi única chance → break-even normal
-        (peleo). Yendo atrás, ídem: necesito la varianza. Sin esto el bot quería un truco
-        con mano floja (máx f6) yendo 14-13 y regalaba el partido (autopsia g2r13)."""
+        0.25. Si foldear TAMBIÉN pierde el partido (opp + Pnq ≥ objetivo), foldear es derrota
+        segura y querer la única chance → umbral 0, quiero con cualquier equity (FIX I, el
+        espejo de FIX F: antes caía al break-even 0.25 y foldeaba manos 0.05-0.24 que perdían
+        el partido igual). Yendo atrás en muerte súbita (foldear sobrevive), break-even:
+        necesito la varianza. Sin FIX F el bot quería un truco con mano floja (máx f6) yendo
+        14-13 y regalaba el partido (g2r13); sin FIX I lo regalaba al mazo yendo 13-14."""
         neg = obs.pendiente
         assert neg is not None
         ultimo = neg.ultimo
@@ -358,7 +361,9 @@ class AgentePIMC(Agent):
         yo = obs.jugador
         mis_puntos, opp = obs.puntos_partida[yo], obs.puntos_partida[1 - yo]
         v, pnq = VALOR_TRUCO[ultimo], NO_QUIERO_TRUCO[ultimo]
-        muerte_subita = opp + v >= obs.objetivo and opp + pnq < obs.objetivo
+        if opp + pnq >= obs.objetivo:  # FIX I (A): foldear ya le da el partido → última chance
+            return 0.0  # quiero con cualquier equity; la escalada la maneja _escalar_o_querer_truco
+        muerte_subita = opp + v >= obs.objetivo  # (opp + pnq < objetivo garantizado por el A)
         if muerte_subita and mis_puntos >= opp:
             return max(base, 0.5)  # sólo me juego el partido siendo favorito
         return base
@@ -367,12 +372,26 @@ class AgentePIMC(Agent):
         """Umbral de equity para aceptar un envido: el **break-even EV del pote**.
         Aceptar un pote V (ganás/perdés V) frente a un 'no quiero' que regala Pnq se
         justifica si eq > 0.5 − Pnq/(2V). Envido simple → 0.25, real → ~0.30, falta → ~0.47.
-        Mucho más fino que un umbral fijo: exige más equity cuanto más grande el pote."""
+        Mucho más fino que un umbral fijo: exige más equity cuanto más grande el pote.
+
+        CONSCIENTE DEL MARCADOR (FIX I, igual que el truco): el pote V y el Pnq salen de
+        valor_envido_querido/no_querido, así que ya incluyen la falta (que vale objetivo −
+        puntero: <2 si el puntero va ≥14, <3 si va ≥13). Sobre eso, dos casos de borde:
+        A) si foldear ya le da el partido al rival (opp + Pnq ≥ objetivo) → derrota segura,
+        quiero libre (0). B) si quiero-perder le da el partido pero foldear sobrevive y no
+        voy atrás (muerte súbita, típico de la falta cerca del final) → sólo de favorito
+        (0.5). Antes era 100% ciego al marcador y regalaba el partido en el no-quiero."""
         neg = obs.pendiente
         assert neg is not None
         valor_falta = valor_falta_envido(obs.puntos_partida, obs.objetivo)
         pote = valor_envido_querido(neg.cantos, valor_falta)
         no_quiero = valor_envido_no_querido(neg.cantos)
+        yo = obs.jugador
+        mis_puntos, opp = obs.puntos_partida[yo], obs.puntos_partida[1 - yo]
+        if opp + no_quiero >= obs.objetivo:  # A: foldear ya le da el partido → última chance
+            return 0.0
+        if opp + pote >= obs.objetivo and mis_puntos >= opp:  # B: muerte súbita → solo favorito
+            return max(0.5 - no_quiero / (2 * pote), 0.5)
         return 0.5 - no_quiero / (2 * pote)
 
     def _piso_tanto_rival(self, obs: EstadoObservable) -> int | None:

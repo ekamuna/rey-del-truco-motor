@@ -362,12 +362,53 @@ def test_umbral_querer_truco_sube_a_favorito_en_muerte_subita() -> None:
     # no → exijo favorito. Es el spot g2r13 (bot 14, rival 13).
     assert abs(umbral(14, 13) - 0.5) < 1e-9
     assert abs(umbral(13, 13) - 0.5) < 1e-9  # parejo, mismo criterio
-    # Foldear TAMBIÉN pierde (opp a 14, su no-quiero llega a 15) → break-even normal, peleo.
-    assert abs(umbral(13, 14) - 0.25) < 1e-9
-    # Voy MUY atrás (necesito varianza) → break-even normal aunque sea muerte súbita.
+    # Foldear TAMBIÉN pierde (opp a 14, su no-quiero llega a 15) → FIX I: es derrota segura,
+    # querer es mi única chance → umbral 0 (peleo con cualquier equity), no el 0.25.
+    assert abs(umbral(13, 14) - 0.0) < 1e-9
+    # Voy MUY atrás en muerte súbita (foldear a 14 SOBREVIVE, no voy a favorito) → break-even.
     assert abs(umbral(10, 13) - 0.25) < 1e-9
     # Lejos del final (el rival no llega al partido ganando el truco) → break-even normal.
     assert abs(umbral(5, 6) - 0.25) < 1e-9
+
+
+def test_umbral_querer_truco_desesperado_si_foldear_pierde() -> None:
+    """FIX I (espejo de FIX F): si NO querer ya le da el PARTIDO al rival (opp + Pnq ≥
+    objetivo), foldear es derrota segura y querer es la única chance → umbral 0 (quiero con
+    cualquier equity > 0). Antes foldeaba manos con equity 0.05-0.24 y regalaba el juego."""
+    ag = AgentePIMC()
+
+    def umbral(mis_puntos: int, opp: int, ultimo: TipoAccion) -> float:
+        obs = _obs_respondiendo_envido((Carta(4, Palo.ORO),), 20)
+        neg = Negociacion(categoria="truco", cantos=(ultimo,), a_responder=1)
+        obs = replace(obs, pendiente=neg, puntos_partida=(opp, mis_puntos), objetivo=15)
+        return ag._umbral_querer_truco_ev(obs)
+
+    # Truco (Pnq=1): opp 14 → su no-quiero llega a 15 → quiero libre, sin importar mi marcador.
+    assert abs(umbral(10, 14, TipoAccion.TRUCO) - 0.0) < 1e-9
+    assert abs(umbral(3, 14, TipoAccion.TRUCO) - 0.0) < 1e-9
+    # Retruco (Pnq=2): opp 13 → su no-quiero llega a 15 → quiero libre.
+    assert abs(umbral(9, 13, TipoAccion.RETRUCO) - 0.0) < 1e-9
+    # Si el no-quiero NO alcanza el partido (opp 13, Pnq=1 → 14) NO es desesperación.
+    assert umbral(9, 13, TipoAccion.TRUCO) > 0.0
+
+
+def test_umbral_querer_envido_es_score_aware() -> None:
+    """FIX I en el envido (antes 100% ciego al marcador): régimen A (foldear pierde → quiero
+    libre), B (quiero-perder pierde pero foldear sobrevive, de favorito → 0.5), C (break-even
+    del pote). El pote/Pnq salen de valor_envido_querido/no_querido (incluida la falta)."""
+    ag = AgentePIMC()
+    env = (TipoAccion.ENVIDO,)
+
+    def umbral(mis_puntos: int, opp: int) -> float:
+        obs = _obs_respondiendo_envido((Carta(4, Palo.ORO),), 20)
+        neg = Negociacion(categoria="envido", cantos=env, a_responder=1)
+        obs = replace(obs, pendiente=neg, puntos_partida=(opp, mis_puntos), objetivo=15)
+        return ag._umbral_querer_envido_ev(obs)
+
+    assert abs(umbral(10, 14) - 0.0) < 1e-9  # A: foldear (Pnq=1) lo lleva a 15 → quiero libre
+    assert abs(umbral(13, 13) - 0.5) < 1e-9  # B: quiero-perder (V=2) lo lleva a 15, favorito
+    assert abs(umbral(10, 13) - 0.25) < 1e-9  # B yendo atrás → varianza → break-even del pote
+    assert abs(umbral(5, 6) - 0.25) < 1e-9  # C: lejos del final → break-even del pote
 
 
 def test_umbral_aceptar_envido_es_break_even_del_pote() -> None:
