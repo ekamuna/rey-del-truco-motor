@@ -4,6 +4,7 @@ from dataclasses import replace
 
 from truco.agents.aleatorio import AgenteAleatorio
 from truco.agents.pimc import (
+    _EPS_FAROL_TRUCO,
     _MARGEN_ENVIDO,
     AgentePIMC,
     _consistente,
@@ -433,6 +434,59 @@ def test_soy_mano_y_no_canto_no_infiere_debilidad_del_rival() -> None:
         jugador=0, mano=0, envido_rival="nadie_canto",  # yo (0) soy mano
     )
     assert ag._restriccion_tanto_por_envido(obs) == (None, None)
+
+
+# --- FIX H: modelado de truco (pondero el canto del rival por estructura) ----
+
+
+def _obs_truco_pendiente(
+    jugador: int, bazas: tuple[ResultadoBaza, ...], cartas_rival: int = 3
+) -> EstadoObservable:
+    """Estoy RESPONDIENDO un truco del rival (hay una negociación de truco pendiente)."""
+    return EstadoObservable(
+        jugador=jugador,
+        mi_mano=(Carta(4, Palo.ORO),),
+        mano=0,
+        turno=0,
+        mesa=(None, None),
+        bazas=bazas,
+        cartas_rival=cartas_rival,
+        pendiente=Negociacion(categoria="truco", cantos=(TipoAccion.TRUCO,), a_responder=jugador),
+        nivel_truco=1,
+        truco_querido=False,
+        envido_resuelto=True,
+        puntos_partida=(0, 0),
+        objetivo=15,
+        terminada=False,
+        ganador=None,
+        puntos_ronda=(0, 0),
+        mi_tanto=20,
+        tanto_rival=None,
+    )
+
+
+def test_estructura_de_truco_del_rival_espejo() -> None:
+    ag = AgentePIMC()
+    # Baza 1 (abrió): exijo DOS fuertes en su mano.
+    obs = _obs_truco_pendiente(jugador=0, bazas=())
+    dos_fuertes = [Carta(2, Palo.ORO), Carta(3, Palo.COPA), Carta(5, Palo.ORO)]  # 2 y 3 = f8,f9
+    una_fuerte = [Carta(2, Palo.ORO), Carta(5, Palo.ORO), Carta(4, Palo.COPA)]  # sólo el 2
+    assert ag._rival_tiene_estructura_truco(obs, dos_fuertes) is True
+    assert ag._rival_tiene_estructura_truco(obs, una_fuerte) is False
+    # El peso refleja la estructura: fuerte → 1.0, floja → ε.
+    assert ag._peso_canto_truco_rival(obs, dos_fuertes) == 1.0
+    assert ag._peso_canto_truco_rival(obs, una_fuerte) == _EPS_FAROL_TRUCO
+
+
+def test_estructura_de_truco_del_rival_yendo_1_0() -> None:
+    # El rival ganó la baza 1 (para mí, jugador 0, es una baza perdida) → va 1-0.
+    ag = AgentePIMC()
+    baza_del_rival = ResultadoBaza(cartas=(Carta(4, Palo.ORO), Carta(11, Palo.BASTO)), ganador=1)
+    obs = _obs_truco_pendiente(jugador=0, bazas=(baza_del_rival,), cartas_rival=2)
+    con_fuerte = [Carta(2, Palo.ORO), Carta(5, Palo.COPA)]  # 1-0 + un fuerte → estructura
+    sin_fuerte = [Carta(5, Palo.ORO), Carta(4, Palo.COPA)]  # 1-0 pero basura → no
+    assert ag._rival_tiene_estructura_truco(obs, con_fuerte) is True
+    assert ag._rival_tiene_estructura_truco(obs, sin_fuerte) is False
 
 
 def test_cumple_tanto_respeta_la_banda() -> None:

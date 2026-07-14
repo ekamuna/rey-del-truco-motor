@@ -20,7 +20,7 @@ from math import comb
 from truco.agents._senales import rival_paso_envido
 from truco.agents.base import Agent
 from truco.agents.memoria_faroles import ConfigCazaFaroles, MemoriaFaroles
-from truco.core.acciones import Accion, TipoAccion, jugar_carta
+from truco.core.acciones import CATEGORIA_TRUCO, Accion, TipoAccion, jugar_carta
 from truco.core.cards import Carta, baraja, fuerza_truco
 from truco.core.engine import acciones_legales, actor, aplicar
 from truco.core.scoring import (
@@ -57,6 +57,13 @@ _TANTO_RIVAL_CANTA = 27  # piso base: tanto mínimo asumido cuando el rival cant
 # corte perfecto. Medido en el estudio exacto: |Δ equity de cartas| ~0.03–0.09. Ver
 # docs/ENVIDO-Y-CANAL.md y el mapa del cerebro.
 _MARGEN_ENVIDO = 2  # tolerancia (en tantos) alrededor del umbral, para no cortar en seco
+# MODELADO DE TRUCO (FIX H): al RESPONDER un truco del rival, sus manos imaginadas se
+# ponderan por P(el rival cantaría con esa mano). Un rival que canta con estructura hace
+# improbables las manos flojas → baja mi P(gano) → no le pago trucos que debería foldear.
+# ε = tasa de farol de truco ASUMIDA (peso de una mano floja). v1: fija; la próxima etapa la
+# hace adaptativa por rival (contra un farolero sube → no me paso foldeando). Ver
+# docs/ENVIDO-Y-CANAL.md (leak: el bot quería demasiado los trucos del humano).
+_EPS_FAROL_TRUCO = 0.30  # ~la fracción de cantos de truco que son farol en un rival realista
 
 
 class AgentePIMC(Agent):
@@ -173,8 +180,41 @@ class AgentePIMC(Agent):
             manos = self._candidatas(obs, self.tope)  # poda incompatible con el reparto → sin poda
         if not manos:
             return 0.5
+        # FIX H: si estoy RESPONDIENDO un truco del rival, pondero cada mano imaginada por
+        # P(el rival cantaría con ella). Manos flojas pesan ε → baja mi P(gano) → no pago
+        # trucos que debería foldear. Sólo al responder (no al decidir cantar yo, que no
+        # tiene truco pendiente).
+        if obs.pendiente is not None and obs.pendiente.categoria == CATEGORIA_TRUCO:
+            num = den = 0.0
+            for h in manos:
+                w = self._peso_canto_truco_rival(obs, h)
+                den += w
+                if _simula_gana_yo(_estado_simulado(obs, h)):
+                    num += w
+            return num / den if den > 0 else 0.5
         ganadas = sum(1 for h in manos if _simula_gana_yo(_estado_simulado(obs, h)))
         return ganadas / len(manos)
+
+    def _peso_canto_truco_rival(self, obs: EstadoObservable, mano_rival: list[Carta]) -> float:
+        """P(el rival cantaría/subiría el truco con esta mano imaginada): 1.0 si tiene
+        estructura, ε si no. Contra un rival tight (cero farol) el ε bajo hace foldear los
+        pagos flojos; la etapa adaptativa lo sube contra un farolero para cazarle el bluff."""
+        if self._rival_tiene_estructura_truco(obs, mano_rival):
+            return 1.0
+        return _EPS_FAROL_TRUCO
+
+    def _rival_tiene_estructura_truco(self, obs: EstadoObservable, mano_rival: list[Carta]) -> bool:
+        """¿El rival tenía estructura para cantar el truco con estas cartas? Espejo de
+        ``_estructura_para_cantar_truco`` desde su lado (sus bazas invertidas, sus cartas)."""
+        g_yo, p_yo = self._bazas_ganadas(obs)
+        g_riv, p_riv = p_yo, g_yo  # las bazas ganadas/perdidas se invierten para el rival
+        if g_riv >= 2:
+            return True
+        if len(obs.bazas) == 0:  # baza 1: exijo 2 fuertes en su mano COMPLETA
+            completa = _rival_jugadas(obs) + list(mano_rival)
+            return sum(1 for c in completa if fuerza_truco(c) >= _FUERTE) >= 2
+        fuertes = sum(1 for c in mano_rival if fuerza_truco(c) >= _FUERTE)
+        return g_riv >= p_riv and fuertes >= 1
 
     def _restriccion_tanto_por_envido(self, obs: EstadoObservable) -> tuple[int | None, int | None]:
         """Canal de información (FIX G): la acción de envido del rival acota su tanto, y eso
