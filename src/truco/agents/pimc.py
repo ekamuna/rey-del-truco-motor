@@ -51,6 +51,12 @@ _P_ESCALAR = 0.10  # sólo escalo (retruco/vale4) si P(el rival me supere) < est
 _TANTO_RIVAL_CANTA = 27  # piso base: tanto mínimo asumido cuando el rival canta envido
 # (calibrado en el panel: 27 maximiza el promedio; coincide con el percentil ~82 del tanto,
 #  el rango donde un rival "canta con puntos". Ver docs/NORTE.md T1 y el análisis de equity.)
+# CANAL DE INFORMACIÓN (FIX G): la acción de envido del rival PODA las manos que le imagino
+# en el juego de cartas (si cantó → tanto alto; si no cantó de mano / no quiso → tanto bajo).
+# Banda BLANDA (no un corte duro en el umbral exacto): el rival cantea probabilístico, no con
+# corte perfecto. Medido en el estudio exacto: |Δ equity de cartas| ~0.03–0.09. Ver
+# docs/ENVIDO-Y-CANAL.md y el mapa del cerebro.
+_MARGEN_ENVIDO = 2  # tolerancia (en tantos) alrededor del umbral, para no cortar en seco
 
 
 class AgentePIMC(Agent):
@@ -161,11 +167,36 @@ class AgentePIMC(Agent):
     # --- Inferencia por muestreo ---------------------------------------------
 
     def _prob_gana_cartas(self, obs: EstadoObservable) -> float:
-        manos = self._candidatas(obs, self.tope)
+        piso, techo = self._restriccion_tanto_por_envido(obs)  # canal de info (FIX G)
+        manos = self._candidatas(obs, self.tope, piso, techo)
+        if not manos and (piso is not None or techo is not None):
+            manos = self._candidatas(obs, self.tope)  # poda incompatible con el reparto → sin poda
         if not manos:
             return 0.5
         ganadas = sum(1 for h in manos if _simula_gana_yo(_estado_simulado(obs, h)))
         return ganadas / len(manos)
+
+    def _restriccion_tanto_por_envido(self, obs: EstadoObservable) -> tuple[int | None, int | None]:
+        """Canal de información (FIX G): la acción de envido del rival acota su tanto, y eso
+        PODA las manos que le imagino en el juego de cartas. Devuelve (piso, techo) de tanto.
+        - Si su tanto ya es público (showdown), ``_consistente`` lo fija exacto → sin poda extra.
+        - Cantó (mostró fuerza) → tanto >= umbral − margen.
+        - No quiso mi envido / MANO que no cantó ('el que no canta') → tanto <= umbral + margen.
+        El umbral es el MISMO ajustado por el modelo del rival (caza-faroles): contra un
+        canta-todo, la vara baja sola y la poda no se pasa de rosca. Banda blanda + fallback."""
+        if obs.tanto_rival is not None:
+            return None, None  # ya está fijado exacto por el showdown
+        señal = obs.envido_rival
+        if señal == "sin_info":
+            return None, None
+        umbral = self._piso_ajustado_por_faroles(self.tanto_rival_canta_envido)
+        if señal == "rival_canto":
+            return max(0, umbral - _MARGEN_ENVIDO), None
+        if señal == "rival_no_quiso":
+            return None, umbral + _MARGEN_ENVIDO
+        if señal == "nadie_canto" and obs.mano == 1 - obs.jugador:
+            return None, umbral + _MARGEN_ENVIDO  # el mano que no canta está flojo
+        return None, None
 
     def _prob_gana_envido(self, obs: EstadoObservable) -> float:
         piso = self._piso_tanto_rival(obs)
@@ -362,11 +393,16 @@ class AgentePIMC(Agent):
         return obs.mi_tanto >= umbral
 
     def _candidatas(
-        self, obs: EstadoObservable, tope: int, piso_tanto: int | None = None
+        self,
+        obs: EstadoObservable,
+        tope: int,
+        piso_tanto: int | None = None,
+        techo_tanto: int | None = None,
     ) -> list[list[Carta]]:
         """TODAS las manos ocultas posibles del rival, consistentes con: lo mostrado,
-        el tanto cantado, con QUÉ carta me mató, y (si respondo un envido) con que su
-        tanto sea >= ``piso_tanto``. Si superan ``tope``, cae a un muestreo de ``self.k``."""
+        el tanto cantado, con QUÉ carta me mató, y con que su tanto esté en la banda
+        ``[piso_tanto, techo_tanto]`` (poda del canal de info). Si superan ``tope``, cae
+        a un muestreo de ``self.k``."""
         pozo = _pozo(obs)
         jugadas = _rival_jugadas(obs)
         faltan = min(obs.cartas_rival, len(pozo))
@@ -374,13 +410,13 @@ class AgentePIMC(Agent):
         consistentes: list[list[Carta]] = []
         for combo in itertools.combinations(pozo, faltan):
             mano = list(combo)
-            if _consistente(obs, mano, jugadas, intervalos) and _cumple_piso(
-                jugadas, mano, piso_tanto
+            if _consistente(obs, mano, jugadas, intervalos) and _cumple_tanto(
+                jugadas, mano, piso_tanto, techo_tanto
             ):
                 consistentes.append(mano)
                 if len(consistentes) > tope:
                     return [
-                        self._muestrear_rival(obs, pozo, intervalos, piso_tanto)
+                        self._muestrear_rival(obs, pozo, intervalos, piso_tanto, techo_tanto)
                         for _ in range(self.k)
                     ]
         return consistentes
@@ -391,16 +427,17 @@ class AgentePIMC(Agent):
         pozo: list[Carta],
         intervalos: list[tuple[int, int]] | None = None,
         piso_tanto: int | None = None,
+        techo_tanto: int | None = None,
     ) -> list[Carta]:
-        """Muestrea las cartas ocultas del rival (tanto cantado + con qué me mató + piso)."""
+        """Muestrea las cartas ocultas del rival (tanto cantado + con qué me mató + banda)."""
         if intervalos is None:
             intervalos = _intervalos_prohibidos(obs)
         jugadas = _rival_jugadas(obs)
         faltan = min(obs.cartas_rival, len(pozo))
         for _ in range(_MAX_RECHAZOS):
             restante = self._rng.sample(pozo, faltan)
-            if _consistente(obs, restante, jugadas, intervalos) and _cumple_piso(
-                jugadas, restante, piso_tanto
+            if _consistente(obs, restante, jugadas, intervalos) and _cumple_tanto(
+                jugadas, restante, piso_tanto, techo_tanto
             ):
                 return restante
         return self._rng.sample(pozo, faltan)  # si no encontró, muestra libre
@@ -439,11 +476,19 @@ def _consistente(
     return not any(lo < fuerza_truco(c) < hi for c in mano for lo, hi in intervalos)
 
 
-def _cumple_piso(jugadas: list[Carta], mano: list[Carta], piso_tanto: int | None) -> bool:
-    """¿La mano imaginada da al menos ``piso_tanto`` de envido? (None = sin restricción)."""
-    if piso_tanto is None:
+def _cumple_tanto(
+    jugadas: list[Carta],
+    mano: list[Carta],
+    piso_tanto: int | None,
+    techo_tanto: int | None = None,
+) -> bool:
+    """¿El tanto de la mano imaginada cae en la banda ``[piso, techo]``? (None = sin cota)."""
+    if piso_tanto is None and techo_tanto is None:
         return True
-    return tanto_envido(tuple(jugadas + mano)) >= piso_tanto
+    t = tanto_envido(tuple(jugadas + mano))
+    if piso_tanto is not None and t < piso_tanto:
+        return False
+    return not (techo_tanto is not None and t > techo_tanto)
 
 
 def _gano_envido(obs: EstadoObservable, tanto_rival: int) -> bool:

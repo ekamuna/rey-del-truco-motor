@@ -110,6 +110,10 @@ class EstadoObservable:
     mi_tanto: int = field(default=0)
     #: Tanto que cantó el rival, público solo si el envido se resolvió con "quiero".
     tanto_rival: int | None = None
+    #: Señal de la acción de envido del rival esta ronda (canal de información, FIX G):
+    #: "rival_canto" = mostró fuerza (tanto alto); "rival_no_quiso"/"nadie_canto" = flojo;
+    #: "sin_info" = sin dato (no resuelto, o showdown que ya fija ``tanto_rival``).
+    envido_rival: str = "sin_info"
 
     @property
     def soy_mano(self) -> bool:

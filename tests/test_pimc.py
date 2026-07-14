@@ -3,7 +3,14 @@
 from dataclasses import replace
 
 from truco.agents.aleatorio import AgenteAleatorio
-from truco.agents.pimc import AgentePIMC, _consistente, _intervalos_prohibidos, _pozo
+from truco.agents.pimc import (
+    _MARGEN_ENVIDO,
+    AgentePIMC,
+    _consistente,
+    _cumple_tanto,
+    _intervalos_prohibidos,
+    _pozo,
+)
 from truco.core.acciones import Accion, TipoAccion, canto
 from truco.core.cards import Carta, Palo
 from truco.core.engine import aplicar, iniciar, nueva_ronda, observacion_de
@@ -209,7 +216,7 @@ def test_escalar_envido_usa_falta_cerca_del_final() -> None:
     todos = {TipoAccion.QUIERO, TipoAccion.NO_QUIERO, TipoAccion.ENVIDO,
              TipoAccion.REAL_ENVIDO, TipoAccion.FALTA_ENVIDO}
     base = _obs_respondiendo_envido((Carta(4, Palo.ORO),), 30)  # jugador 1, tanto 30
-    ganando = replace(base, puntos_partida=(10, 13))  # bot 13 va ganando; real (5) le da 15 al rival
+    ganando = replace(base, puntos_partida=(10, 13))  # bot 13 gana; real (5) le da 15 al rival
     assert ag._escalar_o_querer(ganando, todos).tipo is TipoAccion.FALTA_ENVIDO
     atras = replace(base, puntos_partida=(13, 10))  # bot 10 va atrás → real normal (dar vuelta)
     assert ag._escalar_o_querer(atras, todos).tipo is TipoAccion.REAL_ENVIDO
@@ -241,7 +248,8 @@ def test_escala_truco_solo_con_carta_casi_imbatible() -> None:
     assert ag._escalar_o_querer_truco(con_basura, subible, 0.90).tipo is TipoAccion.QUIERO
     # con prob baja tampoco escala (aun con el macho); y sin subida disponible, quiere
     assert ag._escalar_o_querer_truco(con_macho, subible, 0.50).tipo is TipoAccion.QUIERO
-    assert ag._escalar_o_querer_truco(con_macho, {TipoAccion.QUIERO}, 0.90).tipo is TipoAccion.QUIERO
+    r = ag._escalar_o_querer_truco(con_macho, {TipoAccion.QUIERO}, 0.90)
+    assert r.tipo is TipoAccion.QUIERO
 
 
 def test_estructura_para_cantar_exige_dos_bazas() -> None:
@@ -263,11 +271,13 @@ def test_lidera_mas_alta_en_baza_decisiva_tras_parda() -> None:
     parda = ResultadoBaza(cartas=(Carta(1, Palo.COPA), Carta(1, Palo.ORO)), ganador=None)
     base = _obs_gane_primera((Carta(12, Palo.ORO), Carta(6, Palo.BASTO)), cartas_rival=2)
     obs = replace(base, jugador=0, mano=0, bazas=(parda,), nivel_truco=0, truco_querido=False)
-    assert ag._liderar(obs, [Carta(12, Palo.ORO), Carta(6, Palo.BASTO)]).carta == Carta(12, Palo.ORO)
+    cartas = [Carta(12, Palo.ORO), Carta(6, Palo.BASTO)]
+    assert ag._liderar(obs, cartas).carta == Carta(12, Palo.ORO)
     # control: baza 2 SIN parda (gané la 1ª) → slow-play, la más baja (comportamiento previo)
     gane = ResultadoBaza(cartas=(Carta(4, Palo.ORO), Carta(11, Palo.COPA)), ganador=0)
     obs2 = replace(obs, bazas=(gane,))
-    assert ag._liderar(obs2, [Carta(12, Palo.ORO), Carta(6, Palo.BASTO)]).carta == Carta(6, Palo.BASTO)
+    cartas2 = [Carta(12, Palo.ORO), Carta(6, Palo.BASTO)]
+    assert ag._liderar(obs2, cartas2).carta == Carta(6, Palo.BASTO)
 
 
 def test_p_rival_supera_cuenta_las_que_ganan() -> None:
@@ -368,6 +378,71 @@ def test_piso_selecciona_manos_altas_del_rival() -> None:
     obs = _obs_respondiendo_envido((Carta(3, Palo.ORO),), mi_tanto=24)
     ag = AgentePIMC(seed=0, tanto_rival_canta_envido=26)
     assert ag._piso_tanto_rival(obs) == 26  # envido simple → piso base
+
+
+# --- FIX G: canal de información (el envido poda las cartas del rival) --------
+
+
+def _estado_envido(envido_ganador: int | None, con_quiero: bool = False):
+    """Ronda con el envido ya resuelto de una forma dada (para probar la señal)."""
+    base = nueva_ronda(seed=1, mano=0, puntos_partida=(0, 0), objetivo=15)
+    return replace(
+        base, envido_resuelto=True, envido_con_quiero=con_quiero, envido_ganador=envido_ganador
+    )
+
+
+def test_senal_envido_rival_traduce_la_accion() -> None:
+    # Soy jugador 1, el rival es el 0 (y es mano). observacion_de deriva la señal.
+    from truco.core.engine import observacion_de as obs_de
+
+    # el rival (0) cantó y yo no quise → mostró fuerza
+    assert obs_de(_estado_envido(envido_ganador=0), 1).envido_rival == "rival_canto"
+    # yo (1) canté y el rival no quiso → su tanto es bajo
+    assert obs_de(_estado_envido(envido_ganador=1), 1).envido_rival == "rival_no_quiso"
+    # nadie cantó
+    assert obs_de(_estado_envido(envido_ganador=None), 1).envido_rival == "nadie_canto"
+    # showdown con quiero → sin_info (manda tanto_rival)
+    assert obs_de(_estado_envido(envido_ganador=0, con_quiero=True), 1).envido_rival == "sin_info"
+
+
+def test_canal_info_poda_por_tanto_segun_el_envido() -> None:
+    ag = AgentePIMC(seed=0, tanto_rival_canta_envido=27)  # caza off → umbral plano 27
+    base = _obs_respondiendo_envido((Carta(4, Palo.ORO),), mi_tanto=20)  # jugador 1, rival=0=mano
+
+    # el rival cantó → PISO en tanto (27 − margen), sin techo
+    piso, techo = ag._restriccion_tanto_por_envido(replace(base, envido_rival="rival_canto"))
+    assert piso == 27 - _MARGEN_ENVIDO and techo is None
+    # el rival no quiso mi envido → TECHO (27 + margen), sin piso
+    piso, techo = ag._restriccion_tanto_por_envido(replace(base, envido_rival="rival_no_quiso"))
+    assert piso is None and techo == 27 + _MARGEN_ENVIDO
+    # el mano (rival) no cantó → 'el que no canta está flojo' → TECHO
+    piso, techo = ag._restriccion_tanto_por_envido(replace(base, envido_rival="nadie_canto"))
+    assert piso is None and techo == 27 + _MARGEN_ENVIDO
+    # sin info → sin poda
+    assert ag._restriccion_tanto_por_envido(replace(base, envido_rival="sin_info")) == (None, None)
+    # showdown con tanto público → ya está fijado exacto, no podamos de nuevo
+    con_tanto = replace(base, envido_rival="rival_canto", tanto_rival=29)
+    assert ag._restriccion_tanto_por_envido(con_tanto) == (None, None)
+
+
+def test_soy_mano_y_no_canto_no_infiere_debilidad_del_rival() -> None:
+    # Si YO soy mano y nadie cantó, no aplica 'el mano que no canta' al rival (que es pie).
+    ag = AgentePIMC(seed=0, tanto_rival_canta_envido=27)
+    obs = replace(
+        _obs_respondiendo_envido((Carta(4, Palo.ORO),), mi_tanto=20),
+        jugador=0, mano=0, envido_rival="nadie_canto",  # yo (0) soy mano
+    )
+    assert ag._restriccion_tanto_por_envido(obs) == (None, None)
+
+
+def test_cumple_tanto_respeta_la_banda() -> None:
+    jugadas: list[Carta] = []
+    mano_28 = [Carta(5, Palo.ORO), Carta(3, Palo.ORO), Carta(1, Palo.COPA)]  # tanto 28
+    assert _cumple_tanto(jugadas, mano_28, None, None) is True
+    assert _cumple_tanto(jugadas, mano_28, 25, None) is True  # 28 >= piso 25
+    assert _cumple_tanto(jugadas, mano_28, 29, None) is False  # 28 < piso 29
+    assert _cumple_tanto(jugadas, mano_28, None, 29) is True  # 28 <= techo 29
+    assert _cumple_tanto(jugadas, mano_28, None, 27) is False  # 28 > techo 27
 
 
 def test_no_pago_envido_flojo_pero_si_uno_fuerte() -> None:

@@ -110,7 +110,26 @@ def observacion_de(estado: EstadoRonda, jugador: int) -> EstadoObservable:
         puntos_ronda=estado.puntos_ronda,
         mi_tanto=estado.tantos[jugador],
         tanto_rival=_tanto_rival_publico(estado, rival),
+        envido_rival=_senal_envido_rival(estado, jugador),
     )
+
+
+def _senal_envido_rival(estado: EstadoRonda, jugador: int) -> str:
+    """Qué reveló el rival con su acción de envido esta ronda (canal de información, FIX G).
+    No expone tantos ocultos: sólo la CATEGORÍA de la jugada, que el PIMC traduce en una
+    poda por tanto de las manos que le imagina al rival.
+      - "rival_canto"    : el rival cantó y NO hubo showdown (yo no quise) → tanto ALTO.
+      - "rival_no_quiso" : yo canté y el rival no quiso → su tanto es BAJO.
+      - "nadie_canto"    : el envido se cerró sin que nadie cantara → sin declaración.
+      - "sin_info"       : no resuelto, o resuelto con quiero (ahí manda ``tanto_rival``)."""
+    rival = 1 - jugador
+    if not estado.envido_resuelto or estado.envido_con_quiero:
+        return "sin_info"
+    if estado.envido_ganador == rival:  # el rival cantó y yo no quise
+        return "rival_canto"
+    if estado.envido_ganador == jugador:  # yo canté y el rival no quiso
+        return "rival_no_quiso"
+    return "nadie_canto"  # envido_ganador is None → nadie cantó
 
 
 def tanto_rival_publico(estado: EstadoRonda, rival: int) -> int | None:
