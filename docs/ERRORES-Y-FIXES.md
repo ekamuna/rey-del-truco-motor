@@ -124,3 +124,15 @@ Clave del envido: `V`/`Pnq` salen de `valor_envido_querido/no_querido`, así que
 - TDD: 2 tests nuevos (`test_umbral_querer_truco_desesperado_si_foldear_pierde`, `test_umbral_querer_envido_es_score_aware`) + corrige el assert del test de FIX F que encodeaba el bug. 164 tests, ruff + mypy strict OK. Commit `ef4b7bd`.
 
 **Pendiente relacionado (charlado, NO hecho — es modelado especulativo):** condicionar el modelo del rival por marcador (rival muy atrás → gamblea para recuperar → descontarle crédito a sus cantos). Se mide aparte, después, para no meterle agresión no verificada a un bot conservador.
+
+---
+
+## FIX C — Ofensiva de envido de mano: DESCARTADO POR MEDICIÓN (efecto despreciable)
+
+Hipótesis (intuición del usuario, jugando): "no cantar 23-24 de envido de mano, que cae ante tanto mayor". Se investigó con el solver exacto y se midió a fondo. **Resultado: revertido — el efecto es real pero despreciable en partidos completos.** El recorrido (buen ejemplo de rigor):
+
+1. **La equity refuta el leak plano.** `scratchpad/ev_cantar_mano.py` (EV real de cantar de mano con el rival foldeando/pagando óptimo, no showdown puro): 23-24 de mano es valor **FINO** — apenas **+0.05** contra un rival óptimo (que paga desde 26), pero **−EV contra un caller** que paga desde 24 (23→−0.30, 24→−0.09). El **25** (p≈0.665) es el primer tanto robustamente +EV vs todo tipo de rival. O sea NO es un leak: es valor delgado y rival-dependiente.
+2. **El blanket (cantar de mano sólo desde 25) regresa el panel −0.5%.** Ningún rival del panel es un *caller* de verdad: hasta "agresivo"/"mentiroso" **foldean** su envido → el 23-24 de mano les saca +valor (fold-equity). Saltearlo pierde contra la mayoría. Refutado.
+3. **La versión ADAPTATIVA** (saltear el par medio SÓLO contra un rival confirmado caller, vía una señal nueva `MemoriaFaroles.envido_calls` = fracción de mis envidos que el rival paga; umbral calibrado empíricamente en 0.34: paga-24→call-rate 0.36, paga-25→0.31, normal-27→0.16) es **panel-neutro por construcción** (default = caza off = idéntico al bot base) y **no falso-dispara** vs normal. Pero el A/B contra un caller sintético (`AgenteReglas(querer_envido=23/24)`, `scratchpad/ab_caller.py`, N=500, memoria persistente) da **Δwin +0.0% a +0.8% (ruido)**, dif/part +0.05–0.09.
+
+**Conclusión:** cantar 23-24 de mano vs un caller es −EV *analíticamente* pero **NO mueve la aguja** — los cantos de envido de mano son infrecuentes y el edge por ocurrencia es chico (~0.1-0.3 pts). La pérdida observada jugando fue variance. No justifica agregar una señal aprendida + config + serialización. **Se revierte** (como los experimentos descartados en `docs/RESULTADOS-NOCHE.md`). El norte se sostiene: el bot ya canta 23-24 de mano, que es +valor contra la enorme mayoría de rivales (que foldean).
