@@ -3,6 +3,7 @@
 from dataclasses import replace
 
 from truco.agents.aleatorio import AgenteAleatorio
+from truco.agents.memoria_faroles import ConfigCazaFaroles, MemoriaFaroles
 from truco.agents.pimc import (
     _EPS_FAROL_TRUCO,
     _MARGEN_ENVIDO,
@@ -18,6 +19,7 @@ from truco.core.engine import aplicar, iniciar, nueva_ronda, observacion_de
 from truco.core.state import EstadoObservable, Negociacion, ResultadoBaza
 from truco.evaluacion import enfrentar
 from truco.game_loop import jugar_ronda
+from truco.trayectoria import Paso
 
 
 def _obs_respondiendo_envido(mi_mano: tuple[Carta, ...], mi_tanto: int) -> EstadoObservable:
@@ -487,6 +489,39 @@ def test_estructura_de_truco_del_rival_yendo_1_0() -> None:
     sin_fuerte = [Carta(5, Palo.ORO), Carta(4, Palo.COPA)]  # 1-0 pero basura → no
     assert ag._rival_tiene_estructura_truco(obs, con_fuerte) is True
     assert ag._rival_tiene_estructura_truco(obs, sin_fuerte) is False
+
+
+def test_aprende_farol_de_truco_solo_con_las_3_cartas() -> None:
+    from truco.core.state import ResultadoBaza
+
+    b = ResultadoBaza(cartas=(Carta(4, Palo.ORO), Carta(4, Palo.COPA)), ganador=0)
+    tray_canto = (Paso(antes=None, quien=1, accion=canto(TipoAccion.TRUCO), despues=None),)  # type: ignore[arg-type]
+
+    def registrar(mano_rival: tuple[Carta, ...], bazas_reveladas: int) -> tuple[int, int]:
+        est = iniciar(MANO_28, mano_rival, mano=0)  # jugador 1 = rival, baza 1
+        tray = (replace(tray_canto[0], antes=est),)
+        final = replace(est, bazas=(b,) * bazas_reveladas)
+        mem = MemoriaFaroles()
+        mem._aprender_farol_truco(rival=1, final=final, trayectoria=tray, rival_id="r")
+        return mem.truco_faroles.get("r", (0, 0))
+
+    basura = (Carta(4, Palo.ORO), Carta(6, Palo.COPA), Carta(5, Palo.BASTO))  # sin fuertes
+    fuerte = (Carta(2, Palo.ORO), Carta(3, Palo.COPA), Carta(7, Palo.ESPADA))  # 3 fuertes
+    assert registrar(basura, 3) == (1, 1)  # cantó truco sin estructura → farol
+    assert registrar(fuerte, 3) == (0, 1)  # cantó con estructura → legítimo
+    assert registrar(basura, 2) == (0, 0)  # no se vieron las 3 cartas → no aprende (fidelidad)
+
+
+def test_epsilon_farol_truco_adaptativo() -> None:
+    ag = AgentePIMC(config_caza=ConfigCazaFaroles(activar=True), rival_id="r")
+    assert ag._epsilon_farol_truco() == _EPS_FAROL_TRUCO  # sin datos → default
+    ag.memoria.truco_faroles["r"] = (0, 20)  # tight: 0 faroles en 20 → foldeo más
+    assert ag._epsilon_farol_truco() < _EPS_FAROL_TRUCO
+    ag.memoria.truco_faroles["r"] = (15, 20)  # farolero → le pago (ε sube)
+    assert ag._epsilon_farol_truco() > _EPS_FAROL_TRUCO
+    off = AgentePIMC(rival_id="r")  # caza off por default → siempre el default fijo
+    off.memoria.truco_faroles["r"] = (0, 20)
+    assert off._epsilon_farol_truco() == _EPS_FAROL_TRUCO
 
 
 def test_cumple_tanto_respeta_la_banda() -> None:

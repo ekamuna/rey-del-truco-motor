@@ -17,11 +17,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from truco.core.acciones import CANTOS_ENVIDO
+from truco.core.acciones import CANTOS_ENVIDO, CANTOS_TRUCO
+from truco.core.cards import fuerza_truco
 from truco.core.engine import tanto_rival_publico
 from truco.core.scoring import tanto_envido
 from truco.core.state import EstadoRonda
 from truco.trayectoria import Paso
+
+_FUERTE = 8  # fuerza de una carta "ganadora" (2/3/brava); igual que en pimc
 
 
 def _tanto_visible(final: EstadoRonda, rival: int) -> int | None:
@@ -34,6 +37,20 @@ def _tanto_visible(final: EstadoRonda, rival: int) -> int | None:
     if len(cartas) == 3:  # se vieron las 3 → tanto honestamente calculable
         return tanto_envido(tuple(cartas))
     return None
+
+
+def _tiene_estructura_truco(estado: EstadoRonda, jugador: int) -> bool:
+    """¿``jugador`` tenía estructura para cantar el truco en este estado? Misma regla que
+    el bot (2 bazas / gano>=pierdo + una fuerte / baza 1 con 2 fuertes). Sobre su mano
+    RESTANTE en ese punto (que, si se revelaron las 3 cartas, es información honesta)."""
+    g = sum(1 for b in estado.bazas if b.ganador == jugador)
+    p = sum(1 for b in estado.bazas if b.ganador is not None and b.ganador != jugador)
+    if g >= 2:
+        return True
+    fuertes = sum(1 for c in estado.manos[jugador] if fuerza_truco(c) >= _FUERTE)
+    if len(estado.bazas) == 0:  # baza 1: exijo 2 fuertes
+        return fuertes >= 2
+    return g >= p and fuertes >= 1
 
 
 @dataclass(frozen=True)
@@ -76,6 +93,8 @@ class MemoriaFaroles:
     pescas: dict[str, tuple[int, int]] = field(default_factory=dict)
     #: rival_id -> (rondas_donde_canto_envido, rondas_totales) — FRECUENCIA, sin showdown
     cantos: dict[str, tuple[int, int]] = field(default_factory=dict)
+    #: rival_id -> (cantos_de_truco_sin_estructura, cantos_de_truco_vistos) — FAROL de TRUCO
+    truco_faroles: dict[str, tuple[int, int]] = field(default_factory=dict)
 
     def estimar_farol(self, rival_id: str, cfg: ConfigCazaFaroles) -> float:
         exitos, intentos = self.conteos.get(rival_id, (0, 0))
@@ -99,6 +118,14 @@ class MemoriaFaroles:
     def intentos_canto(self, rival_id: str) -> int:
         return self.cantos.get(rival_id, (0, 0))[1]
 
+    def estimar_farol_truco(self, rival_id: str, cfg: ConfigCazaFaroles) -> float:
+        """Fracción de cantos de truco del rival que fueron SIN estructura (Beta con prior)."""
+        exitos, intentos = self.truco_faroles.get(rival_id, (0, 0))
+        return (exitos + cfg.prior_alfa) / (intentos + cfg.prior_alfa + cfg.prior_beta)
+
+    def intentos_farol_truco(self, rival_id: str) -> int:
+        return self.truco_faroles.get(rival_id, (0, 0))[1]
+
     def _registrar_canto(self, rival_id: str, canto: bool) -> None:
         exitos, intentos = self.cantos.get(rival_id, (0, 0))
         self.cantos[rival_id] = (exitos + int(canto), intentos + 1)
@@ -110,6 +137,10 @@ class MemoriaFaroles:
     def _registrar_pesca(self, rival_id: str, pesco: bool) -> None:
         exitos, intentos = self.pescas.get(rival_id, (0, 0))
         self.pescas[rival_id] = (exitos + int(pesco), intentos + 1)
+
+    def _registrar_truco(self, rival_id: str, farol: bool) -> None:
+        exitos, intentos = self.truco_faroles.get(rival_id, (0, 0))
+        self.truco_faroles[rival_id] = (exitos + int(farol), intentos + 1)
 
     def observar_ronda(
         self,
@@ -130,6 +161,24 @@ class MemoriaFaroles:
         self._registrar_canto(rival_id, rival_canto_envido)  # frecuencia (sin showdown)
         self._aprender_pesca(rival, rival_canto_envido, inicial, final, cfg, rival_id)
         self._aprender_farol(mi_jugador, rival, rival_canto_envido, final, cfg, rival_id)
+        self._aprender_farol_truco(rival, final, trayectoria, rival_id)
+
+    def _aprender_farol_truco(
+        self,
+        rival: int,
+        final: EstadoRonda,
+        trayectoria: tuple[Paso, ...],
+        rival_id: str,
+    ) -> None:
+        """Faceta FAROLERO de TRUCO: el rival cantó/subió el truco SIN estructura. HONESTO:
+        sólo si se revelaron sus 3 cartas (round jugado a fondo → su mano es pública), igual
+        que ``_tanto_visible`` exige las 3 para el envido. Si el bot foldeó el truco, no ve
+        nada y no aprende (como en la vida real)."""
+        pasos = [p for p in trayectoria if p.quien == rival and p.accion.tipo in CANTOS_TRUCO]
+        if not pasos or len(final.bazas) < 3:
+            return
+        estado_al_cantar = pasos[0].antes  # su primer canto de truco de la ronda
+        self._registrar_truco(rival_id, not _tiene_estructura_truco(estado_al_cantar, rival))
 
     def _aprender_farol(
         self,
@@ -177,6 +226,7 @@ class MemoriaFaroles:
             "conteos": {k: list(v) for k, v in self.conteos.items()},
             "pescas": {k: list(v) for k, v in self.pescas.items()},
             "cantos": {k: list(v) for k, v in self.cantos.items()},
+            "truco_faroles": {k: list(v) for k, v in self.truco_faroles.items()},
         }
 
     @classmethod
@@ -186,4 +236,9 @@ class MemoriaFaroles:
             assert isinstance(crudos, dict)
             return {k: (int(v[0]), int(v[1])) for k, v in crudos.items()}
 
-        return cls(conteos=_leer("conteos"), pescas=_leer("pescas"), cantos=_leer("cantos"))
+        return cls(
+            conteos=_leer("conteos"),
+            pescas=_leer("pescas"),
+            cantos=_leer("cantos"),
+            truco_faroles=_leer("truco_faroles"),
+        )

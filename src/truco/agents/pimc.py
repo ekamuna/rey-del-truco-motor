@@ -201,7 +201,19 @@ class AgentePIMC(Agent):
         pagos flojos; la etapa adaptativa lo sube contra un farolero para cazarle el bluff."""
         if self._rival_tiene_estructura_truco(obs, mano_rival):
             return 1.0
-        return _EPS_FAROL_TRUCO
+        return self._epsilon_farol_truco()
+
+    def _epsilon_farol_truco(self) -> float:
+        """ε = peso de una mano floja del rival al ponderar su canto de truco. ADAPTATIVO
+        (etapa 2): con showdowns de truco (rondas donde se vieron sus 3 cartas) tiende a la
+        tasa de farol OBSERVADA del rival — tight → ε bajo (foldeo más), farolero → ε alto
+        (le pago y le cazo el bluff). Sin modelo activo o sin datos → default fijo (etapa 1)."""
+        n = self.memoria.intentos_farol_truco(self.rival_id)
+        if not self.cfg_caza.activar or n == 0:
+            return _EPS_FAROL_TRUCO
+        f = self.memoria.estimar_farol_truco(self.rival_id, self.cfg_caza)
+        peso = n / (n + self.cfg_caza.n0_confianza)  # shrinkage hacia el default
+        return (1.0 - peso) * _EPS_FAROL_TRUCO + peso * f
 
     def _rival_tiene_estructura_truco(self, obs: EstadoObservable, mano_rival: list[Carta]) -> bool:
         """¿El rival tenía estructura para cantar el truco con estas cartas? Espejo de
