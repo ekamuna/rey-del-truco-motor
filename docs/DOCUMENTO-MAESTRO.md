@@ -93,7 +93,7 @@ Cada paso reutiliza el anterior. Empezás por reglas, seguís por RL. Ese es el 
 El buen jugador optimiza tres cosas a la vez: **el valor de sus cartas**, **el valor de la apuesta** (puntos en juego + marcador) y **el valor de la información** (lo que revela y lo que infiere). Estas heurísticas son exactamente lo que vas a codear en el `RuleBasedAgent`.
 
 ### Clasificá cada carta
-- **Matas/bravas** (1♠, 1♣, 7♠, 7 oro): ganan casi cualquier baza. Se guardan y administran.
+- **Matas/bravas** (1 espada, 1 basto, 7 espada, 7 oro): ganan casi cualquier baza. Se guardan y administran.
 - **Altas** (3, 2): ganan la mayoría.
 - **Medias** (1 falso, 12, 11, 10): sirven para envido, débiles para truco.
 - **Chicas** (7 falso, 6, 5, 4): casi solo para envido o para "tirar".
@@ -221,6 +221,6 @@ rey-del-truco/
 
 1. **Creá el proyecto:** `uv init rey-del-truco` (o poetry), con `pytest` y `mypy` configurados.
 2. **Modelá `core/cards.py`:** una clase `Carta` (número + palo) y una función de **jerarquía del truco** que devuelva la fuerza de cada carta. Es la base y es sorprendentemente sutil.
-3. **Escribí los tests primero:** `test_jerarquia_cartas.py` que verifique que 1♠ > 1♣ > 7♠ > 7 oro > los 3 > ... y que el 1 de oro y el 7 de basto son **bajos**. Si esto pasa, tenés el corazón del motor bien puesto.
+3. **Escribí los tests primero:** `test_jerarquia_cartas.py` que verifique que 1 espada > 1 basto > 7 espada > 7 oro > los 3 > ... y que el 1 de oro y el 7 de basto son **bajos**. Si esto pasa, tenés el corazón del motor bien puesto.
 
 Con eso arrancado, la Fase 0 se completa sola en unos días. No toques ML hasta la Fase 3 — el ML se **enchufa** encima gracias a la interfaz `Agent`, sin reescribir nada. Dale para adelante.

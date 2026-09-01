@@ -25,8 +25,8 @@ setup  cartas  motor   jugar   reglas  envido   ML/RL   web/CFR
 ### M1 — Cartas y jerarquía  ⭐ *el corazón*  ✅ HECHO
 - 🎯 Representar la baraja y el orden de poder REAL del truco.
 - 🛠️ `core/cards.py`: `Carta(numero, palo)` + `fuerza_truco(carta) -> int`. `core/mazo.py`: baraja de 40 y reparto.
-- 🧠 Que la jerarquía **no es numérica**; las "bravas" (1♠, 1♣, 7♠, 7oro) y las trampas (1 y 7 "falsos" son bajos).
-- ✅ `test_jerarquia.py` verifica `1♠ > 1♣ > 7♠ > 7oro > 3 > 2 > 1falso > 12 > 11 > 10 > 7falso > 6 > 5 > 4`, y que dos cartas de igual rango dan **parda**.
+- 🧠 Que la jerarquía **no es numérica**; las "bravas" (1 espada, 1 basto, 7 espada, 7 oro) y las trampas (1 y 7 "falsos" son bajos).
+- ✅ `test_jerarquia.py` verifica `1 espada > 1 basto > 7 espada > 7 oro > 3 > 2 > 1 falso > 12 > 11 > 10 > 7 falso > 6 > 5 > 4`, y que dos cartas de igual rango dan **parda**.
 
 ### M2 — Motor de la ronda (solo bazas, sin cantos)  ✅ HECHO
 - 🎯 Jugar una ronda completa de 3 bazas y saber quién ganó.
