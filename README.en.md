@@ -68,10 +68,17 @@ uv run truco --rival pimc        # play vs PIMC (it reads / infers your cards) ð
 uv run truco                     # vs the rule-based bot (opponent modeling + bluffing)
 uv run truco --usuario juan      # with your profile: the bot learns you across matches
 uv run truco --rival q           # vs the tabular Q agent (RL)
-uv run truco --rival red         # vs the neural net (deep RL)
 uv run truco-panel               # the exam: who beats whom? (table above)
-uv run truco-entrenar            # train tabular Q Â· truco-entrenar-red for the net
-uv run pytest && uv run ruff check . && uv run mypy   # tests + lint + types
+uv run truco-entrenar            # train tabular Q
+```
+
+**ML phase (neural net) and development.** The only part that needs the heavy deps (numpy + PyTorch); playing doesn't. Install the extra:
+
+```bash
+uv sync --extra ml               # installs numpy + PyTorch
+uv run truco --rival red         # play vs the neural net (deep RL)
+uv run truco-entrenar-red        # train the net
+uv run pytest && uv run ruff check . && uv run mypy   # full suite (tests + lint + types)
 ```
 
 ## Documentation

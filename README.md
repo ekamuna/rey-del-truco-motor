@@ -68,10 +68,17 @@ uv run truco --rival pimc        # jugá vs el PIMC (te lee / infiere tus cartas
 uv run truco                     # vs el bot de reglas (opponent modeling + faroleo)
 uv run truco --usuario juan      # con tu perfil: el bot te va conociendo entre partidas
 uv run truco --rival q           # vs el agente Q tabular (RL)
-uv run truco --rival red         # vs la red neuronal (deep RL)
 uv run truco-panel               # el examen: ¿quién le gana a quién? (tabla de arriba)
-uv run truco-entrenar            # entrená el Q tabular · truco-entrenar-red para la red
-uv run pytest && uv run ruff check . && uv run mypy   # tests + lint + tipos
+uv run truco-entrenar            # entrená el Q tabular
+```
+
+**Fase ML (red neuronal) y desarrollo.** Es lo único que necesita las dependencias pesadas (numpy + PyTorch); jugar no. Instalá el extra:
+
+```bash
+uv sync --extra ml               # instala numpy + PyTorch
+uv run truco --rival red         # jugá vs la red neuronal (deep RL)
+uv run truco-entrenar-red        # entrená la red
+uv run pytest && uv run ruff check . && uv run mypy   # suite completa (tests + lint + tipos)
 ```
 
 ## Documentación

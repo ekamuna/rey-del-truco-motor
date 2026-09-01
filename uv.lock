@@ -746,7 +746,9 @@ wheels = [
 name = "rey-del-truco-motor"
 version = "0.1.0"
 source = { editable = "." }
-dependencies = [
+
+[package.optional-dependencies]
+ml = [
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "torch" },
@@ -761,9 +763,10 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "numpy", specifier = ">=2.4.6" },
-    { name = "torch", specifier = ">=2.13.0" },
+    { name = "numpy", marker = "extra == 'ml'", specifier = ">=2.4.6" },
+    { name = "torch", marker = "extra == 'ml'", specifier = ">=2.13.0" },
 ]
+provides-extras = ["ml"]
 
 [package.metadata.requires-dev]
 dev = [

@@ -6,7 +6,13 @@ readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
 requires-python = ">=3.11"
-dependencies = [
+# El juego (motor + bot PIMC) NO necesita dependencias pesadas: es Python puro.
+# Jugar = `uv sync` (liviano). Para el ML (red neuronal / --rival red / entrenar-red)
+# instalá el extra: `uv sync --extra ml`.
+dependencies = []
+
+[project.optional-dependencies]
+ml = [
     "numpy>=2.4.6",
     "torch>=2.13.0",
 ]

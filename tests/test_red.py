@@ -1,4 +1,9 @@
 """Tests de la red neuronal (M7): encoder, máscara, red y AgenteRed."""
+# ruff: noqa: E402  (importorskip debe correr ANTES de importar torch/numpy/rl)
+import pytest
+
+pytest.importorskip("torch")
+pytest.importorskip("numpy")
 
 import torch
 

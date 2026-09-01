@@ -14,7 +14,6 @@ from truco.agents.pimc import AgentePIMC
 from truco.agents.reglas import AgenteReglas
 from truco.evaluacion import FabricaAgente, enfrentar
 from truco.rl.agente_q import AgenteQ
-from truco.rl.agente_red import AgenteRed
 from truco.rl.qtable import QTable
 
 _RUTA_Q = Path("modelos/qtable.json")
@@ -37,8 +36,13 @@ def _contendientes() -> dict[str, FabricaAgente]:
         q = QTable.cargar(_RUTA_Q)
         ags["Q tabular"] = lambda: AgenteQ(q)
     if _RUTA_RED.exists():
-        red = AgenteRed.cargar(_RUTA_RED).red
-        ags["Red (deep RL)"] = lambda: AgenteRed(red)
+        try:
+            from truco.rl.agente_red import AgenteRed
+        except ImportError:
+            print("(salto la fila 'Red': necesita el extra ML — 'uv sync --extra ml')")
+        else:
+            red = AgenteRed.cargar(_RUTA_RED).red
+            ags["Red (deep RL)"] = lambda: AgenteRed(red)
     ags["PIMC (infiere)"] = lambda: AgentePIMC()
     return ags
 

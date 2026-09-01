@@ -27,7 +27,6 @@ from truco.game_loop import jugar_ronda
 from truco.perfil import Faceta, PerfilDelRival
 from truco.perfil.almacen import AlmacenDePerfiles
 from truco.rl.agente_q import AgenteQ
-from truco.rl.agente_red import AgenteRed
 from truco.rl.qtable import QTable
 from truco.ui.humano import AgenteHumano
 from truco.ui.narrador import (
@@ -101,11 +100,16 @@ def _crear_maquina(
         escribir("Rival: PIMC — te lee (infiere tus cartas ocultas). 🔮")
         return AgentePIMC()
     if rival == "red":
-        ruta = Path("modelos/red.pt")
-        if ruta.exists():
-            escribir("Rival: red neuronal (deep RL). 🧠")
-            return AgenteRed.cargar(ruta)
-        escribir(f"(No encontré {ruta}; entrenala con 'uv run truco-entrenar-red'.)")
+        try:
+            from truco.rl.agente_red import AgenteRed
+        except ImportError:
+            escribir("(La red neuronal necesita el extra ML: instalá con 'uv sync --extra ml'.)")
+        else:
+            ruta = Path("modelos/red.pt")
+            if ruta.exists():
+                escribir("Rival: red neuronal (deep RL). 🧠")
+                return AgenteRed.cargar(ruta)
+            escribir(f"(No encontré {ruta}; entrenala con 'uv run truco-entrenar-red'.)")
     if rival == "q":
         ruta = Path(modelo)
         if ruta.exists():
