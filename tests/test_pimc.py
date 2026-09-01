@@ -325,7 +325,7 @@ def test_lidera_hacer_primera_con_mano_floja() -> None:
 
 
 def test_lidera_slow_play_con_carta_fuerte() -> None:
-    # Con una carta fuerte (2♠ fuerza 8) → liderar la MÁS BAJA (guardar la fuerte).
+    # Con una carta fuerte (2 de espada, fuerza 8) → liderar la MÁS BAJA (guardar la fuerte).
     obs = _obs_liderando((Carta(2, Palo.ESPADA), Carta(4, Palo.COPA), Carta(5, Palo.ORO)))
     accion = AgentePIMC(seed=0)._elegir_carta(obs, list(obs.mi_mano))
     assert accion.carta == Carta(4, Palo.COPA)  # fuerza 0, la más baja

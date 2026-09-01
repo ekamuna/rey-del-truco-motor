@@ -23,13 +23,13 @@ Arrancás una partida a 15. En cada mano el bot te muestra el tablero, tus carta
 
 ```
   Tus cartas  (tu envido: 27):
-     6 de basto ♣
-     12 de oro ♦
-     1 de basto ♣
+     6 de basto
+     12 de oro
+     1 de basto
   ¿Qué hacés?
-     [0] jugar el 6 de basto ♣     [3] cantar ¡TRUCO!
-     [1] jugar el 12 de oro ♦      [4] cantar ¡ENVIDO!
-     [2] jugar el 1 de basto ♣     ...
+     [0] jugar el 6 de basto     [3] cantar ¡TRUCO!
+     [1] jugar el 12 de oro      [4] cantar ¡ENVIDO!
+     [2] jugar el 1 de basto     ...
 ```
 
 Elegís con el número y el bot responde: canta, quiere, se va al mazo, te farolea o te

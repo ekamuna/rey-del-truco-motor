@@ -23,13 +23,13 @@ You start a 15-point match. Each hand, the bot shows the board, your cards and a
 
 ```
   Your cards  (your envido: 27):
-     6 de basto ♣
-     12 de oro ♦
-     1 de basto ♣
+     6 de basto
+     12 de oro
+     1 de basto
   What do you do?
-     [0] play the 6 de basto ♣     [3] call ¡TRUCO!
-     [1] play the 12 de oro ♦      [4] call ¡ENVIDO!
-     [2] play the 1 de basto ♣     ...
+     [0] play the 6 de basto     [3] call ¡TRUCO!
+     [1] play the 12 de oro      [4] call ¡ENVIDO!
+     [2] play the 1 de basto     ...
 ```
 
 You pick a number and the bot answers: it calls, accepts, folds, bluffs, or reads you

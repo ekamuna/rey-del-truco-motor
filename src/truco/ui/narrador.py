@@ -13,17 +13,10 @@ El humano es el jugador 0 por defecto ("vos"); el rival es "la máquina".
 from __future__ import annotations
 
 from truco.core.acciones import CANTOS_ENVIDO, CANTOS_TRUCO, Accion, TipoAccion
-from truco.core.cards import Carta, Palo
+from truco.core.cards import Carta
 from truco.core.state import EstadoObservable, EstadoRonda
 
 # --- Cartas y jugadores ------------------------------------------------------
-
-_SIMBOLO_PALO: dict[Palo, str] = {
-    Palo.ESPADA: "♠",
-    Palo.BASTO: "♣",
-    Palo.ORO: "♦",
-    Palo.COPA: "♥",
-}
 
 #: Valor del truco querido por nivel (para anunciar "se juega por N").
 _VALOR_TRUCO = {1: 2, 2: 3, 3: 4}
@@ -33,8 +26,8 @@ _LINEA = "─" * _ANCHO
 
 
 def carta_str(carta: Carta) -> str:
-    """Nombre legible de una carta, con símbolo de palo. Ej: ``3 de espada ♠``."""
-    return f"{carta.numero} de {carta.palo.value} {_SIMBOLO_PALO[carta.palo]}"
+    """Nombre legible de una carta. Ej: ``3 de espada``."""
+    return f"{carta.numero} de {carta.palo.value}"
 
 
 def _sujeto(jugador: int, humano: int) -> str:

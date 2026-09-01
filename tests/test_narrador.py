@@ -26,9 +26,9 @@ def _texto(lineas: list[str]) -> str:
     return "\n".join(lineas)
 
 
-def test_carta_str_incluye_simbolo_de_palo() -> None:
-    assert carta_str(Carta(3, Palo.ESPADA)) == "3 de espada ♠"
-    assert "♦" in carta_str(Carta(12, Palo.ORO))
+def test_carta_str_nombre_del_palo_en_espanol() -> None:
+    assert carta_str(Carta(3, Palo.ESPADA)) == "3 de espada"
+    assert carta_str(Carta(12, Palo.ORO)) == "12 de oro"
 
 
 def test_narrar_canto_distingue_vos_y_maquina() -> None:
