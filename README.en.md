@@ -5,8 +5,12 @@ your cards, and you play head-to-head against the machine (envido, truco, bluffs
 
 [English](README.en.md) · [Español](README.md)
 
+You need [**uv**](https://docs.astral.sh/uv/getting-started/installation/) (it manages Python and dependencies for you):
+
 ```bash
-uv sync                          # set up the environment (once)
+git clone https://github.com/ekamuna/rey-del-truco-motor.git
+cd rey-del-truco-motor
+uv sync                          # installs everything the first time (downloads PyTorch, may take a while)
 uv run truco --rival pimc        # play the best bot! 🔮
 ```
 

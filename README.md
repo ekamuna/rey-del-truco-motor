@@ -5,8 +5,12 @@ las cartas y jugás mano a mano contra la máquina (envido, truco, faroles y tod
 
 [English](README.en.md) · [Español](README.md)
 
+Necesitás [**uv**](https://docs.astral.sh/uv/getting-started/installation/) (maneja Python y las dependencias por vos):
+
 ```bash
-uv sync                          # instala el entorno (una vez)
+git clone https://github.com/ekamuna/rey-del-truco-motor.git
+cd rey-del-truco-motor
+uv sync                          # instala todo la primera vez (baja PyTorch, puede tardar)
 uv run truco --rival pimc        # ¡a jugar contra el mejor bot! 🔮
 ```
 
