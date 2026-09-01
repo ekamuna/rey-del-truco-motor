@@ -13,8 +13,9 @@ logs/
 *.pt
 wandb/
 
-# Perfiles de usuario (datos locales del jugador)
+# Perfiles de usuario y datos locales (marcador de la web, etc.)
 perfiles/
+datos/
 
 # OS / editor
 .DS_Store

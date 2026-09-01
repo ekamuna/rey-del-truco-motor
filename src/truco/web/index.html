@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0b5d3b" />
+<title>Rey del Truco</title>
+<style>
+  :root {
+    --felt: #0b5d3b; --felt-2: #094e32; --line: #ffffff22;
+    --cream: #f4ecd8; --ink: #23180f; --muted: #d8e8de99;
+    --oro: #e0a92e; --copa: #d0483e; --espada: #4a7fb5; --basto: #3f9b6b;
+    --canto: #e0a92e; --si: #3f9b6b; --no: #b5544a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: ui-rounded, "Segoe UI", system-ui, sans-serif;
+    background: radial-gradient(120% 90% at 50% 0%, var(--felt) 0%, var(--felt-2) 100%);
+    color: var(--cream); min-height: 100dvh;
+    padding: env(safe-area-inset-top) 14px env(safe-area-inset-bottom);
+  }
+  .wrap { max-width: 460px; margin: 0 auto; padding-bottom: 24px; }
+  h1 { font-size: 1.15rem; letter-spacing: .02em; margin: 14px 0 4px; text-align: center; }
+  h1 .sub { display:block; font-weight: 400; font-size: .72rem; color: var(--muted); letter-spacing:.08em; text-transform: uppercase; }
+
+  /* marcador histórico */
+  .tally { display: flex; justify-content: center; gap: 0; margin: 10px auto 4px; }
+  .tally .cell { text-align:center; padding: 8px 18px; }
+  .tally .n { font-size: 2rem; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
+  .tally .lbl { font-size: .68rem; text-transform: uppercase; letter-spacing:.08em; color: var(--muted); }
+  .tally .vs { align-self:center; color: var(--muted); font-size:.9rem; padding: 0 4px; }
+  .tally .vos .n { color: #fff; }
+  .tally .bot .n { color: var(--oro); }
+
+  .panel { background: #00000026; border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; margin: 12px 0; }
+  .score { display:flex; justify-content: space-between; align-items:center; font-variant-numeric: tabular-nums; }
+  .score b { font-size: 1.25rem; }
+  .score .obj { color: var(--muted); font-size:.78rem; }
+  .mano { text-align:center; color: var(--muted); font-size:.8rem; margin-top: 4px; }
+
+  .mesa { min-height: 64px; display:flex; gap:10px; justify-content:center; align-items:center; margin: 6px 0; }
+  .mesa .empty { color: var(--muted); font-size:.82rem; }
+
+  .log { font-size:.82rem; line-height: 1.5; color: #eef6f0; min-height: 20px; }
+  .log div { padding: 1px 0; }
+  .log .hi { color: var(--oro); font-weight:600; }
+
+  .hand { display:flex; flex-wrap: wrap; gap: 10px; justify-content:center; margin: 6px 0; }
+  .carta {
+    background: var(--cream); color: var(--ink); border: none; border-bottom: 5px solid var(--suit, #999);
+    border-radius: 12px; padding: 14px 12px 10px; min-width: 84px; text-align:center;
+    font-size: 1rem; font-weight: 700; cursor: pointer; box-shadow: 0 4px 10px #0004;
+  }
+  .carta .num { font-size: 1.7rem; display:block; line-height:1; }
+  .carta .palo { font-size: .74rem; text-transform: uppercase; letter-spacing:.04em; color:#00000099; }
+  .carta:active { transform: translateY(2px); }
+  .carta[disabled] { opacity:.5; }
+  .suit-oro { --suit: var(--oro); } .suit-copa { --suit: var(--copa); }
+  .suit-espada { --suit: var(--espada); } .suit-basto { --suit: var(--basto); }
+
+  .cantos { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-top: 8px; }
+  .btn { border:none; border-radius: 10px; padding: 12px 16px; font-size:.95rem; font-weight:700; cursor:pointer; color: var(--ink); }
+  .btn:active { transform: translateY(2px); }
+  .btn.canto { background: var(--canto); }
+  .btn.si { background: var(--si); color:#fff; }
+  .btn.no { background: var(--no); color:#fff; }
+  .btn.ghost { background: #ffffff1a; color: var(--cream); }
+
+  .esperando { text-align:center; color: var(--muted); font-size:.85rem; padding: 10px; }
+  .fin { text-align:center; padding: 8px 0 4px; }
+  .fin .big { font-size: 1.3rem; font-weight: 800; }
+  .fin.win .big { color: var(--si); } .fin.lose .big { color: var(--no); }
+  .nueva { display:block; width:100%; margin-top: 12px; background: var(--cream); color: var(--ink); }
+  footer { text-align:center; color: var(--muted); font-size:.7rem; margin-top: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🃏 Rey del Truco <span class="sub">vos vs la máquina</span></h1>
+
+  <div class="tally">
+    <div class="cell vos"><div class="n" id="t-vos">0</div><div class="lbl">ganaste</div></div>
+    <div class="vs">—</div>
+    <div class="cell bot"><div class="n" id="t-bot">0</div><div class="lbl">te ganó</div></div>
+  </div>
+
+  <div class="panel">
+    <div class="score"><span>Partida <span class="obj">a <span id="obj">15</span></span></span>
+      <span><b id="p-vos">0</b> &nbsp;–&nbsp; <b id="p-bot">0</b></span></div>
+    <div class="mano" id="mano">—</div>
+    <div class="mesa" id="mesa"></div>
+  </div>
+
+  <div class="panel"><div class="log" id="log"></div></div>
+
+  <div id="zona-juego">
+    <div class="hand" id="hand"></div>
+    <div class="cantos" id="cantos"></div>
+    <div class="esperando" id="esperando" hidden>La máquina está pensando…</div>
+  </div>
+
+  <div id="zona-fin" hidden>
+    <div class="fin" id="fin"><div class="big"></div></div>
+    <button class="btn nueva" onclick="nueva()">Jugar otra partida</button>
+  </div>
+
+  <footer>Corre 100% local · bot PIMC (sin IA de pago)</footer>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+function palo(cartaStr) {
+  const p = cartaStr.split(" de ")[1] || "";
+  return ["oro","copa","espada","basto"].find((s) => p.includes(s)) || "";
+}
+function chipCarta(cartaStr, onClick) {
+  const [num, resto] = cartaStr.split(" de ");
+  const s = palo(cartaStr);
+  const el = document.createElement(onClick ? "button" : "div");
+  el.className = "carta suit-" + s;
+  el.innerHTML = `<span class="num">${num}</span><span class="palo">${resto || ""}</span>`;
+  if (onClick) el.onclick = onClick;
+  return el;
+}
+
+async function pedir(url, body) {
+  const r = await fetch(url, body ? {
+    method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body),
+  } : {});
+  return r.json();
+}
+
+function render(v) {
+  $("t-vos").textContent = v.marcador.vos;
+  $("t-bot").textContent = v.marcador.bot;
+  $("p-vos").textContent = v.partida.vos;
+  $("p-bot").textContent = v.partida.bot;
+  $("obj").textContent = v.partida.objetivo;
+
+  // log
+  const log = $("log"); log.innerHTML = "";
+  (v.eventos || []).forEach((e) => {
+    const d = document.createElement("div");
+    if (/gana|ganaste|Ganó|envido|truco|quiere/i.test(e)) d.className = "hi";
+    d.textContent = e; log.appendChild(d);
+  });
+
+  // mesa + mano context
+  const mesa = $("mesa"); mesa.innerHTML = "";
+  if (!v.partida.terminada && v.ronda) {
+    $("mano").textContent = v.ronda.soy_mano ? "Sos mano · tu envido: " + v.ronda.mi_tanto
+                                             : "Mano la máquina · tu envido: " + v.ronda.mi_tanto;
+    if (v.ronda.carta_rival) { const l=document.createElement("div"); l.className="empty"; l.textContent="máquina:"; mesa.append(l, chipCarta(v.ronda.carta_rival)); }
+    if (v.ronda.carta_mia) { const l=document.createElement("div"); l.className="empty"; l.textContent="vos:"; mesa.append(l, chipCarta(v.ronda.carta_mia)); }
+    if (!v.ronda.carta_rival && !v.ronda.carta_mia) { const e=document.createElement("div"); e.className="empty"; e.textContent="— nadie tiró todavía —"; mesa.append(e); }
+  } else { $("mano").textContent = "—"; }
+
+  // fin de partida
+  const fin = v.partida.terminada;
+  $("zona-juego").hidden = fin;
+  $("zona-fin").hidden = !fin;
+  if (fin) {
+    const gano = v.partida.ganador === 0;
+    const box = $("fin"); box.className = "fin " + (gano ? "win" : "lose");
+    box.querySelector(".big").textContent =
+      (gano ? "¡Ganaste! 🎉 " : "Perdiste 😕 ") + v.partida.vos + "–" + v.partida.bot;
+    return;
+  }
+
+  // acciones
+  const hand = $("hand"), cantos = $("cantos"); hand.innerHTML = ""; cantos.innerHTML = "";
+  const tuTurno = v.tu_turno && v.acciones.length;
+  $("esperando").hidden = tuTurno;
+  (v.acciones || []).forEach((a) => {
+    if (a.tipo === "jugar") {
+      const nombre = a.label.replace(/^jugar el /, "");
+      hand.appendChild(chipCarta(nombre, () => jugar(a.indice)));
+    } else {
+      const b = document.createElement("button");
+      const clase = a.tipo === "quiero" ? "si" : (a.tipo === "no quiero" || a.tipo === "mazo") ? "no" : "canto";
+      b.className = "btn " + clase;
+      b.textContent = a.label; b.onclick = () => jugar(a.indice);
+      cantos.appendChild(b);
+    }
+  });
+}
+
+async function jugar(indice) {
+  document.querySelectorAll("button").forEach((b) => (b.disabled = true));
+  render(await pedir("/api/jugar", {indice}));
+}
+async function nueva() { render(await pedir("/api/nueva", {})); }
+(async () => render(await pedir("/api/estado")))();
+</script>
+</body>
+</html>

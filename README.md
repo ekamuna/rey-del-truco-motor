@@ -64,7 +64,9 @@ información imperfecta es la inferencia (PIMC / CFR), no una red pelada.
 ## Comandos
 
 ```bash
-uv run truco --rival pimc        # jugá vs el PIMC (te lee / infiere tus cartas) 🏆
+uv run truco-web                 # 🌐 jugá en el NAVEGADOR + lleva la cuenta de partidas ganadas/perdidas
+#   └ desde el celu (misma red): uv run truco-web --host 0.0.0.0 → http://<ip-de-tu-compu>:8000
+uv run truco --rival pimc        # jugá en la terminal vs el PIMC (te lee / infiere tus cartas) 🏆
 uv run truco                     # vs el bot de reglas (opponent modeling + faroleo)
 uv run truco --usuario juan      # con tu perfil: el bot te va conociendo entre partidas
 uv run truco --rival q           # vs el agente Q tabular (RL)

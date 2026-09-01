@@ -64,7 +64,9 @@ The real ceiling in imperfect information is inference (PIMC / CFR), not a bare 
 ## Commands
 
 ```bash
-uv run truco --rival pimc        # play vs PIMC (it reads / infers your cards) 🏆
+uv run truco-web                 # 🌐 play in the BROWSER + tracks your win/loss record
+#   └ from your phone (same wifi): uv run truco-web --host 0.0.0.0 → http://<your-computer-ip>:8000
+uv run truco --rival pimc        # play in the terminal vs PIMC (it reads / infers your cards) 🏆
 uv run truco                     # vs the rule-based bot (opponent modeling + bluffing)
 uv run truco --usuario juan      # with your profile: the bot learns you across matches
 uv run truco --rival q           # vs the tabular Q agent (RL)

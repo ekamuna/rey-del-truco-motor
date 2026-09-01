@@ -19,6 +19,7 @@ ml = [
 
 [project.scripts]
 truco = "truco.ui.cli:cli"
+truco-web = "truco.web.servidor:main"
 truco-entrenar = "truco.rl.entrenar:main"
 truco-entrenar-red = "truco.rl.entrenar_red:main"
 truco-panel = "truco.rl.panel:main"
