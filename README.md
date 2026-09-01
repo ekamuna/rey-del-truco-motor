@@ -3,6 +3,8 @@
 Un **bot con el que jugás al truco argentino 1v1 en la terminal**: te sentás, te reparte
 las cartas y jugás mano a mano contra la máquina (envido, truco, faroles y todo).
 
+[English](README.en.md) · [Español](README.md)
+
 ```bash
 uv sync                          # instala el entorno (una vez)
 uv run truco --rival pimc        # ¡a jugar contra el mejor bot! 🔮
