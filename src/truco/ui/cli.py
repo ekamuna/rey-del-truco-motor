@@ -3,8 +3,8 @@
 Ejecutar con::
 
     uv run truco                          # usuario "invitado"
-    uv run truco --usuario emmanuel       # carga/guarda tu perfil
-    uv run python -m truco.ui.cli --usuario emmanuel
+    uv run truco --usuario juan           # carga/guarda tu perfil
+    uv run python -m truco.ui.cli --usuario juan
 
 El bot carga tu **historial** (``perfiles/<usuario>.json``), juega ajustándose a
 tu fama y lo actualiza al terminar. La presentación vive en :mod:`truco.ui.narrador`.
@@ -149,7 +149,11 @@ def cli() -> None:
     )
     parser.add_argument("--modelo", default="modelos/qtable.json", help="ruta del modelo (rival q)")
     args = parser.parse_args()
-    main(seed=args.seed, usuario=args.usuario, rival=args.rival, modelo=args.modelo)
+    try:
+        main(seed=args.seed, usuario=args.usuario, rival=args.rival, modelo=args.modelo)
+    except (EOFError, KeyboardInterrupt):
+        print("\n\n  Chau, gracias por jugar. 🃏")
+        raise SystemExit(0) from None
 
 
 if __name__ == "__main__":

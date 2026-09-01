@@ -3,6 +3,8 @@ name = "rey-del-truco-motor"
 version = "0.1.0"
 description = "Motor de truco argentino 1v1 con IA — juego + aprendizaje de ML por fases"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.11"
 dependencies = [
     "numpy>=2.4.6",

@@ -15,17 +15,17 @@ def test_cargar_usuario_nuevo_da_perfil_vacio(tmp_path: Path) -> None:
 
 def test_guardar_y_cargar_round_trip(tmp_path: Path) -> None:
     alm = AlmacenDePerfiles(tmp_path)
-    p = PerfilDelRival("Emmanuel Abugauch")
+    p = PerfilDelRival("Juan Perez")
     p.conteos["mentiroso_truco|parejo"] = (3, 5)
     p.conteos["miedoso|perdiendo"] = (1, 8)
     alm.guardar(p)
 
-    recargado = alm.cargar("Emmanuel Abugauch")
+    recargado = alm.cargar("Juan Perez")
     assert recargado.conteos == p.conteos
-    assert (tmp_path / "emmanuel-abugauch.json").exists()
+    assert (tmp_path / "juan-perez.json").exists()
 
 
 def test_sanear_nombre_de_usuario() -> None:
-    assert _sanear("Emmanuel Abugauch") == "emmanuel-abugauch"
+    assert _sanear("Juan Perez") == "juan-perez"
     assert _sanear("  ") == "invitado"
     assert _sanear("José/../hack") == "jos-hack"

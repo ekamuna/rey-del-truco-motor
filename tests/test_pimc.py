@@ -18,7 +18,7 @@ from truco.agents.pimc import (
 from truco.core.acciones import Accion, TipoAccion, canto
 from truco.core.cards import Carta, Palo
 from truco.core.engine import acciones_legales, aplicar, iniciar, nueva_ronda, observacion_de
-from truco.core.state import EstadoObservable, Negociacion, ResultadoBaza
+from truco.core.state import EstadoObservable, EstadoRonda, Negociacion, ResultadoBaza
 from truco.evaluacion import enfrentar
 from truco.game_loop import jugar_ronda
 from truco.trayectoria import Paso
@@ -456,7 +456,7 @@ def test_piso_selecciona_manos_altas_del_rival() -> None:
 # --- FIX G: canal de información (el envido poda las cartas del rival) --------
 
 
-def _estado_envido(envido_ganador: int | None, con_quiero: bool = False):
+def _estado_envido(envido_ganador: int | None, con_quiero: bool = False) -> EstadoRonda:
     """Ronda con el envido ya resuelto de una forma dada (para probar la señal)."""
     base = nueva_ronda(seed=1, mano=0, puntos_partida=(0, 0), objetivo=15)
     return replace(

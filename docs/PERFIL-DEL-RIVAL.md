@@ -5,7 +5,7 @@
 > Esto es **opponent modeling** (modelado del rival). NO es machine learning pesado:
 > es estadística interpretable que funciona desde la primera partida.
 
-**Estado:** 🧠 diseño en discusión. No implementado. Milestone tentativo: **M5.5** (antes del ML de M6).
+**Estado:** ✅ **Implementado** (v1) en `src/truco/perfil/` — este documento es el diseño detrás. El bot de reglas lo usa cuando pasás `--usuario <nombre>`; se guarda en `perfiles/<usuario>.json`.
 
 ---
 
@@ -17,15 +17,15 @@ asustás fácil, te farolea más. Y — clave — lo hace mirando **tu historial
 
 ---
 
-## 2. Identidad y persistencia por usuario  ⬅️ (idea de Emmanuel)
+## 2. Identidad y persistencia por usuario
 
-- Cada jugador tiene un **usuario** (ej. `emmanuel-abugauch`). Al arrancar, te "logueás" con ese nombre.
+- Cada jugador tiene un **usuario** (ej. `juan-perez`). Al arrancar, te "logueás" con ese nombre.
 - El bot carga **tu perfil histórico** (de todas tus partidas anteriores) y lo sigue actualizando.
 - **Almacenamiento (v1):** un archivo JSON por usuario en `perfiles/<usuario>.json`. Simple, legible,
   versionable, sin base de datos. (Más adelante se podría migrar a SQLite si crece.)
 - Se **carga al loguear**, se **actualiza al final de cada ronda** (cuando se ven las cartas) y se
   **guarda al terminar la partida** (o incrementalmente).
-- "Login" en v1 = pasar el nombre: `uv run truco --usuario emmanuel-abugauch` (o preguntarlo al inicio).
+- "Login" en v1 = pasar el nombre: `uv run truco --usuario juan-perez` (o preguntarlo al inicio).
   Sin contraseña: es un juego local, el usuario es solo una **etiqueta** para separar historiales.
 
 > **Privacidad:** son tus propios datos, guardados **localmente** en tu máquina. Si algún día el juego
@@ -51,7 +51,7 @@ Cada observación es un par **(¿hiciste X?, en el contexto C)** → con eso se 
 
 ---
 
-## 4. Las facetas del perfil  ⬅️ (idea de Emmanuel: "mentiroso" + otras)
+## 4. Las facetas del perfil
 
 El perfil no es un número: son varias **facetas**, cada una una probabilidad estimada. Estas son
 TODAS las facetas que queremos (el "norte"); las marcadas **[v1]** se implementan primero.
@@ -80,7 +80,7 @@ TODAS las facetas que queremos (el "norte"); las marcadas **[v1]** se implementa
 
 ---
 
-## 5. Tendencias según el momento  ⬅️ (idea de Emmanuel: la predisposición cambia)
+## 5. Tendencias según el momento
 
 Una faceta **no es un solo número**: depende del **contexto**. Tu ejemplo es perfecto:
 *"si perdió 2-3 manos seguidas, hay predisposición a mentir para recuperar"*.
@@ -91,7 +91,7 @@ Entonces cada faceta se mide **por contexto**, no en general. Ejemplos de contex
 - **Según la racha:** `mentiroso[venís de perder 2+ manos]` (el "revanchismo" que dijiste).
 - **Según seas mano o pie.**
 
-Así el bot puede pensar: *"en general Emmanuel miente 30%... pero **perdiendo y en racha negativa**
+Así el bot puede pensar: *"en general este jugador miente 30%... pero **perdiendo y en racha negativa**
 miente 55% → ahora mismo no le creo casi nada"*. Eso es lo que lo hace sentir vivo.
 
 ---
