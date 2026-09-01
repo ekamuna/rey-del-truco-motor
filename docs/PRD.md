@@ -11,7 +11,7 @@
 
 > Un rival de truco que juega bien, que **sabe cuándo cantar y qué carta guardar**, y que puedo hacer cada vez más inteligente — pasando de reglas escritas a mano a una IA que aprende sola.
 
-No es un anotador (eso ya existe: `rey-del-truco-main`). Esto es el **motor de juego + el cerebro del oponente**.
+No es un anotador de puntaje. Esto es el **motor de juego + el cerebro del oponente**.
 
 ## 2. Objetivos
 
@@ -60,7 +60,7 @@ No es un anotador (eso ya existe: `rey-del-truco-main`). Esto es el **motor de j
 - **Stack:** Python 3.11+, pytest, mypy, PyTorch + Gymnasium (fase ML).
 - **P1 — Separar reglas de IA:** el motor no sabe *cómo* decide un jugador; la IA no reimplementa reglas.
 - **P2 — Estado observable ≠ estado completo:** el `ObservableState` (lo que ve un jugador) se modela desde el día 1; es lo que habilita el RL.
-- **P3 — Una sola interfaz `Agent`:** `act(obs, legal_actions) -> Action`. Sirve igual para reglas y para RL.
+- **P3 — Una sola interfaz `Agent`:** `actuar(obs, acciones) -> Accion`. Sirve igual para reglas y para RL.
 - **P4 — `core/` no importa nada de arriba:** dependencias siempre hacia adentro (`ui`/`rl` → `game_loop` → `agents` → `core`).
 - **P5 — El motor DEBE tener tests.** Es la base sobre la que se apoya todo el ML.
 

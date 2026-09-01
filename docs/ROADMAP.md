@@ -4,6 +4,8 @@ Plan por **milestones**. Cada uno es una unidad entendible y jugable/testeable p
 
 Leyenda: 🎯 objetivo · 🛠️ qué construís · 🧠 qué aprendés · ✅ DoD (listo cuando…)
 
+> **Nota:** este es un documento de planificación. Los nombres de archivo son ilustrativos; el código real usa nombres en español (`agents/reglas.py`, `ui/humano.py`, `rl/entrenar.py`, etc.). Ver el árbol real en `src/truco/`.
+
 ```
 M0 ──▶ M1 ──▶ M2 ──▶ M3 ──▶ M4 ──▶ M5 ──▶ M6 ──▶ (M7 techo)
 setup  cartas  motor   jugar   reglas  envido   ML/RL   web/CFR

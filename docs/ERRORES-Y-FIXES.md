@@ -1,5 +1,8 @@
 # Errores del bot y cambios a hacer (de la tanda 2–1 con ground-truth)
 
+> **Nota:** los scripts de análisis y harnesses citados como `scratchpad/…` son
+> herramientas de trabajo locales (no versionadas en el repo).
+
 > Análisis con **verdad de fondo** (cartas ocultas del bot + cada decisión, replay
 > instrumentado `scratchpad/analizar_tanda.py`). Se listan **sólo los puntos que
 > PERDIÓ el bot**, marcados ❌ (perdió mal = error corregible) o ✅ (perdió bien =

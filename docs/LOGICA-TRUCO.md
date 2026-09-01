@@ -2,8 +2,7 @@
 
 > El truco se gana con **2 bazas**. La apuesta sigue tu **certeza** de esas 2 bazas.
 > Todo fundado en conteo exacto (el truco es finito: 40 cartas, el rival toca 3),
-> no en corazonada. Teoría del usuario (experto); equity enumerada en
-> `scratchpad/equity_truco.py`.
+> no en corazonada. Teoría del experto, fundada en equity enumerada exhaustivamente.
 
 ## Los números que fundan la regla (enumeración exhaustiva)
 

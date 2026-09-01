@@ -2,6 +2,8 @@
 
 *Guía de referencia para aprender el juego y construir el bot, paso a paso.*
 
+> **Nota:** documento conceptual. Los nombres de archivo/función y el árbol de carpetas son ilustrativos; el código real usa nombres en español (ver `src/truco/`). La interfaz real de un agente es `actuar(obs, acciones)`.
+
 ---
 
 ## 1. Qué es el truco argentino

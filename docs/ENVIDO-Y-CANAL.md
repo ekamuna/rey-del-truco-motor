@@ -145,7 +145,7 @@ Intervalos de aceptación por acción y asiento del rival:
 - **(c) Coherencia de extremos OK:** 33 → P(mano)=1.0; 0 → P(mano)=0.0057, P(pie)=0.0; ambos asientos monótonos no-decrecientes en el tanto.
 - **(d) Canal reproducible:** `canal_info.py` da deltas bit-idénticos en dos corridas (−0.0816, +0.0272, −0.0733, +0.0000, +0.0887, −0.0393); enumeración exacta determinista sin RNG; su tanto también valida 0 mismatches.
 
-**Reconciliación de solvers:** las 3 implementaciones coinciden EXACTAMENTE celda por celda a 6 decimales (16 celdas: 8 tantos × 2 asientos). No hay bug que corregir. Única diferencia: `impl_0` usa una sola pasada (rápido); `impl_1`/`impl_2` llaman `solve_envido` por asiento (~2× más lento, por eso hicieron timeout de 2 min al re-correr). El canónico usa la pasada única de `impl_0`. Path: `.../scratchpad/canonical_envido.py`.
+**Reconciliación de solvers:** las 3 implementaciones coinciden EXACTAMENTE celda por celda a 6 decimales (16 celdas: 8 tantos × 2 asientos). No hay bug que corregir. Única diferencia: `impl_0` usa una sola pasada (rápido); `impl_1`/`impl_2` llaman `solve_envido` por asiento (~2× más lento, por eso hicieron timeout de 2 min al re-correr). El canónico usa la pasada única de `impl_0`.
 
 ### Salvedades honestas
 - El benchmark de la tabla es **showdown incondicional**. La capa de QUERER (condicionada al umbral de canto del rival) **no está tabulada** ahí; se obtiene truncando la distribución rival a `rt ≥ umbral`. El solver lo soporta filtrando el rival en `solve_envido`.
